@@ -1,0 +1,9 @@
+llama-index
+llama-index-llms-openai
+graspologic
+networkx
+pandas
+pydantic>=2
+nest-asyncio
+python-dotenv
+jupyter
