@@ -1,6 +1,6 @@
 """Ontology, extraction prompt, and structured extraction models."""
 
-from typing import Literal
+from typing import Literal, get_args
 
 from pydantic import BaseModel, Field
 
@@ -53,25 +53,8 @@ class ExtractionResult(BaseModel):
 class GraphRAGSchema:
     """Class 1: the domain ontology, prompt, and Pydantic output models."""
 
-    ENTITY_TYPES = (
-        "ORGANIZATION",
-        "PERSON",
-        "LEGISLATION",
-        "LEGAL_CASE",
-        "CONCEPT",
-        "GOVERNMENT",
-        "AI_SYSTEM",
-    )
-    RELATION_TYPES = (
-        "FILED_AGAINST",
-        "DEFENDANT_IN",
-        "REGULATES",
-        "ADVOCATES_FOR",
-        "TRAINED_ON",
-        "PART_OF",
-        "REFERENCES",
-        "OPPOSES",
-    )
+    ENTITY_TYPES = get_args(EntityType)
+    RELATION_TYPES = get_args(RelationType)
 
     ExtractedEntity = ExtractedEntity
     ExtractedRelationship = ExtractedRelationship
@@ -113,4 +96,3 @@ Extract up to {{max_knowledge_triplets}} entity-relation triplets.
 text: {{text}}
 ######################
 """
-

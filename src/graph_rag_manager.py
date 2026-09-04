@@ -2,10 +2,11 @@
 
 import asyncio
 import copy
+import os
 import pickle
 from collections import defaultdict
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from dotenv import load_dotenv
 from llama_index.core import Document, PropertyGraphIndex, Settings
@@ -13,11 +14,14 @@ from llama_index.core.graph_stores.types import (
     KG_NODES_KEY,
     KG_RELATIONS_KEY,
 )
+from llama_index.core.llms.llm import LLM
 from llama_index.llms.openai import OpenAI
 
 from .graph_rag_engine import GraphRAGExtractor, GraphRAGStore
 from .graph_rag_schema import GraphRAGSchema
 from .graph_rag_services import GraphRAGService
+
+LLMProvider = Literal["openai", "qwen"]
 
 
 class GraphRAGManager:
@@ -27,8 +31,11 @@ class GraphRAGManager:
 
     def __init__(
         self,
+        provider: LLMProvider = "openai",
         extraction_model: str = "gpt-4o-mini",
         query_model: str = "gpt-4o",
+        qwen_base_url: str = "http://192.168.10.45:4000/v1",
+        qwen_context_window: int = 32768,
         max_paths_per_chunk: int = 20,
         num_workers: int = 4,
         max_cluster_size: int = 10,
@@ -36,20 +43,18 @@ class GraphRAGManager:
         request_max_retries: int = 5,
     ) -> None:
         load_dotenv()
-        llm_request_options = {
+        if provider not in ("openai", "qwen"):
+            raise ValueError("provider must be either 'openai' or 'qwen'")
+
+        self.provider = provider
+        self.qwen_base_url = qwen_base_url
+        self.qwen_context_window = qwen_context_window
+        self.llm_request_options = {
             "timeout": request_timeout,
             "max_retries": request_max_retries,
         }
-        self.extraction_llm = OpenAI(
-            model=extraction_model,
-            temperature=0,
-            **llm_request_options,
-        )
-        self.query_llm = OpenAI(
-            model=query_model,
-            temperature=0,
-            **llm_request_options,
-        )
+        self.extraction_llm = self._new_llm(extraction_model)
+        self.query_llm = self._new_llm(query_model)
         Settings.llm = self.extraction_llm
 
         self.max_paths_per_chunk = max_paths_per_chunk
@@ -59,6 +64,44 @@ class GraphRAGManager:
         self.graph_store: GraphRAGStore | None = None
         self.index: PropertyGraphIndex | None = None
         self.extractor = self._new_extractor()
+
+    def _new_llm(self, model: str) -> LLM:
+        if self.provider == "openai":
+            return OpenAI(
+                model=model,
+                temperature=0,
+                **self.llm_request_options,
+            )
+
+        api_key = os.getenv("LITELLM_API_KEY")
+        if not api_key:
+            raise ValueError(
+                "LITELLM_API_KEY is required when provider='qwen'"
+            )
+        try:
+            from llama_index.llms.openai_like import OpenAILike
+        except ImportError as exc:
+            raise ImportError(
+                "Qwen support requires llama-index-llms-openai-like. "
+                "Install the dependencies from requirements.txt."
+            ) from exc
+
+        return OpenAILike(
+            model=model,
+            api_base=self.qwen_base_url,
+            api_key=api_key,
+            temperature=0,
+            context_window=self.qwen_context_window,
+            is_chat_model=True,
+            is_function_calling_model=False,
+            should_use_structured_outputs=True,
+            additional_kwargs={
+                "extra_body": {
+                    "chat_template_kwargs": {"enable_thinking": False}
+                }
+            },
+            **self.llm_request_options,
+        )
 
     def _new_extractor(self) -> GraphRAGExtractor:
         return GraphRAGExtractor(
