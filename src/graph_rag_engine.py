@@ -259,22 +259,11 @@ class GraphRAGStore(SimplePropertyGraphStore):
             relationships_text = "\n".join(
                 sorted(set(data["relationships"]))
             )
-            prompt = f"""You are analysing a cluster of entities from news articles about
-AI copyright, governance, and intellectual property.
-
-Entities in this cluster:
-{entities_text}
-
-Relationships:
-{relationships_text}
-
-Write a concise briefing (3-5 sentences) that:
-1. Identifies the main organizations, people, legal cases, or topics in this cluster
-2. Explains how they are connected and why, including legal or regulatory context
-3. Highlights any disputes, lawsuits, policy positions, or tensions
-4. Notes anything particularly relevant to AI copyright or governance
-
-Briefing:"""
+            prompt = GraphRAGSchema.render_prompt(
+                "community_summary",
+                entities_text=entities_text,
+                relationships_text=relationships_text,
+            )
             response = summary_llm.complete(prompt)
             self.community_summaries[community_id] = response.text
             print(f"  Community {community_id}: {response.text[:100]}...")
@@ -311,24 +300,15 @@ class GraphRAGQueryEngine(CustomQueryEngine):
         return self._aggregate(relevant_answers, query_str)
 
     def _answer_from_community(self, summary: str, query: str) -> str:
-        prompt = (
-            f"Community summary:\n{summary}\n\n"
-            f"Question: {query}\n\n"
-            "If this summary contains information relevant to the question, "
-            "answer it. If not relevant, reply exactly: "
-            "'No relevant information.'\n\nAnswer:"
+        prompt = GraphRAGSchema.render_prompt(
+            "community_answer", summary=summary, query=query,
         )
         text = self.community_llm.complete(prompt).text.strip()
         return "" if "no relevant information" in text.lower() else text
 
     def _aggregate(self, answers: list[str], query: str) -> str:
         combined = "\n\n---\n\n".join(answers)
-        prompt = (
-            "You have received answers from multiple knowledge graph communities "
-            f"about this question:\n\nQuestion: {query}\n\n"
-            f"Community answers:\n{combined}\n\n"
-            "Synthesize these into a single, clear, well-structured final answer. "
-            "Remove redundancy, keep all important details, and ensure the answer "
-            "directly addresses the question.\n\nFinal Answer:"
+        prompt = GraphRAGSchema.render_prompt(
+            "aggregation", combined=combined, query=query,
         )
         return self.llm.complete(prompt).text

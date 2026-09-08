@@ -4,6 +4,7 @@ import asyncio
 import copy
 import os
 import pickle
+from collections.abc import Sequence
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Literal
@@ -15,6 +16,7 @@ from llama_index.core.graph_stores.types import (
     KG_RELATIONS_KEY,
 )
 from llama_index.core.llms.llm import LLM
+from llama_index.core.schema import BaseNode
 from llama_index.llms.openai import OpenAI
 
 from .graph_rag_engine import GraphRAGExtractor, GraphRAGStore
@@ -60,7 +62,7 @@ class GraphRAGManager:
         self.max_paths_per_chunk = max_paths_per_chunk
         self.num_workers = num_workers
         self.max_cluster_size = max_cluster_size
-        self.documents: list[Document] = []
+        self.documents: list[BaseNode] = []
         self.graph_store: GraphRAGStore | None = None
         self.index: PropertyGraphIndex | None = None
         self.extractor = self._new_extractor()
@@ -119,9 +121,26 @@ class GraphRAGManager:
         self.documents = GraphRAGService.load_documents(csv_file, max_articles)
         return self.documents
 
+    def load_pdf_documents(
+        self,
+        pdf_file: str | Path,
+        pages: str | Sequence[int] | None = None,
+        chunk_size: int = 1000,
+        chunk_overlap: int = 100,
+    ) -> list[BaseNode]:
+        """Load selected pages from a text PDF as chunked graph input nodes."""
+
+        self.documents = GraphRAGService.load_pdf_documents(
+            pdf_file=pdf_file,
+            pages=pages,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+        )
+        return self.documents
+
     def build_knowledge_graph(
         self,
-        documents: list[Document] | None = None,
+        documents: list[BaseNode] | None = None,
         build_communities: bool = True,
         show_progress: bool = True,
     ) -> GraphRAGStore:
@@ -130,7 +149,10 @@ class GraphRAGManager:
         if documents is not None:
             self.documents = documents
         if not self.documents:
-            raise ValueError("No documents loaded. Call load_documents() first.")
+            raise ValueError(
+                "No documents loaded. Call load_documents() or "
+                "load_pdf_documents() first."
+            )
 
         self.extractor = self._new_extractor()
         self.graph_store = GraphRAGStore()
@@ -216,11 +238,35 @@ class GraphRAGManager:
         self.save_knowledge_graph(checkpoint_file)
         return graph_store
 
+    def build_pdf_and_store(
+        self,
+        pdf_file: str | Path,
+        checkpoint_file: str | Path,
+        pages: str | Sequence[int] | None = None,
+        chunk_size: int = 1000,
+        chunk_overlap: int = 100,
+        show_progress: bool = True,
+    ) -> GraphRAGStore:
+        """Load selected PDF pages, build their graph, and save a checkpoint."""
+
+        self.load_pdf_documents(
+            pdf_file=pdf_file,
+            pages=pages,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+        )
+        graph_store = self.build_knowledge_graph(show_progress=show_progress)
+        self.save_knowledge_graph(checkpoint_file)
+        return graph_store
+
     async def atest_extraction(self, document_index: int = 3) -> dict[str, Any]:
         """Extract and print one article without mutating the stored document."""
 
         if not self.documents:
-            raise ValueError("No documents loaded. Call load_documents() first.")
+            raise ValueError(
+                "No documents loaded. Call load_documents() or "
+                "load_pdf_documents() first."
+            )
         if not 0 <= document_index < len(self.documents):
             raise IndexError(
                 f"document_index must be between 0 and {len(self.documents) - 1}"
@@ -230,7 +276,7 @@ class GraphRAGManager:
         print("=== Title ===")
         print(sample.metadata.get("title", "untitled"))
         print("\n=== Raw text ===")
-        print(sample.text)
+        print(sample.get_content())
 
         extracted = await self.extractor._aextract(copy.deepcopy(sample))
         entities = extracted.metadata.get(KG_NODES_KEY, [])

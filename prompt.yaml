@@ -1,0 +1,145 @@
+# Selected by active_ontology in ontology.yaml. Profile names must match.
+# Keep all placeholders shown below. Use {{ and }} for literal braces.
+# Restart Python/the notebook kernel after editing.
+prompts:
+  AI news:
+    extraction: |
+      -Goal-
+      Given a news article about AI copyright, governance, or intellectual property,
+      identify the entities and their relationships supported by the article.
+      Extract up to {max_knowledge_triplets} entity-relation triplets.
+
+      -Allowed Entity Types-
+      {entity_types}
+
+      -Allowed Relationship Types-
+      {relation_types}
+
+      -Steps-
+      1. Identify entities. For each, return its name, allowed type, and a brief
+         description of its role in AI copyright or governance.
+      2. Identify relationships. For each, return source and target entity names,
+         an allowed relation type, and a description explaining the connection.
+      3. Preserve direction, attribution, and legal status. Do not present an
+         allegation or an unresolved legal argument as an established finding.
+      Use consistent entity names and only the allowed labels.
+
+      -Source Text-
+      {text}
+
+    community_summary: |
+      You are analysing a cluster from news articles about AI copyright,
+      governance, and intellectual property.
+
+      Entities:
+      {entities_text}
+
+      Relationships:
+      {relationships_text}
+
+      Write a concise briefing (3-5 sentences) identifying the main organizations,
+      people, legal cases, or topics; explain their connections and legal or
+      regulatory context. Highlight disputes, policy positions, and tensions.
+      Use only the supplied information and preserve attribution and uncertainty.
+      Briefing:
+
+    community_answer: |
+      Answer the AI copyright or governance question using only this summary.
+      Preserve the distinction between allegations, arguments, and legal findings.
+      If the summary is not relevant, reply exactly: No relevant information.
+
+      Community summary:
+      {summary}
+
+      Question: {query}
+      Answer:
+
+    aggregation: |
+      Synthesize these community answers into a clear response to the question
+      about AI copyright or governance. Remove redundancy, retain relevant facts,
+      and preserve disagreements, attribution, and uncertainty. Do not add facts
+      or citations that are absent from the supplied answers.
+
+      Question: {query}
+
+      Community answers:
+      {combined}
+
+      Final Answer:
+
+  Xelsis:
+    extraction: |
+      -Goal-
+      Extract operation, maintenance, and troubleshooting knowledge from the
+      supplied Saeco Xelsis manual excerpt.
+      Extract up to {max_knowledge_triplets} entity-relation triplets.
+
+      -Allowed Entity Types-
+      {entity_types}
+
+      -Allowed Relationship Types-
+      {relation_types}
+
+      -Steps-
+      1. Return each entity's name, allowed type, and description. Return each
+         relationship's source, target, allowed relation, and description.
+      2. Use consistent names for components. Represent each troubleshooting
+         symptom-cause-remedy entry as a distinct DIAGNOSTIC_CASE, linked using
+         HAS_SYMPTOM, HAS_POSSIBLE_CAUSE, and HAS_REMEDY. Do not mix remedies
+         belonging to different causes of the same symptom.
+      3. Preserve causal direction and distinguish possible causes from confirmed
+         faults. Do not classify explicitly normal behavior as a fault.
+      4. Keep schedules, thresholds, units, waiting times, prerequisites, and
+         prohibitions in descriptions, attached to the relevant action or condition.
+         Scope procedural steps and PRECEDES links to their specific procedure.
+      5. Carry forward table headings and blank-cell context only when supported
+         by the supplied excerpt. Mark incomplete procedures and preserve differing
+         instructions with their source context; do not invent missing steps.
+      Use only the allowed labels and information supported by the excerpt.
+
+      -Source Text-
+      {text}
+
+    community_summary: |
+      Summarize this cluster of Saeco Xelsis operation, maintenance, and
+      troubleshooting knowledge using only the supplied information.
+
+      Entities:
+      {entities_text}
+
+      Relationships:
+      {relationships_text}
+
+      Write a concise briefing (3-5 sentences). Identify the relevant components,
+      symptoms, possible causes, and actions. Keep each diagnostic case's cause
+      paired with its own remedy. Preserve maintenance frequencies, thresholds,
+      procedural order, prerequisites, prohibitions, and uncertainty. Do not
+      infer missing steps or treat a possible cause as a confirmed diagnosis.
+      Briefing:
+
+    community_answer: |
+      Answer the Xelsis question using only this community summary. Distinguish
+      possible causes and pair each with its associated remedy. Preserve schedules,
+      conditions, and procedural order; acknowledge missing instructions.
+      If the summary is not relevant, reply exactly: No relevant information.
+
+      Community summary:
+      {summary}
+
+      Question: {query}
+      Answer:
+
+    aggregation: |
+      Combine these community answers into a clear answer about the Saeco Xelsis.
+      Remove redundancy, keep each possible cause paired with its remedy, and
+      preserve maintenance intervals, conditions, warnings, and step order.
+      Keep conflicting instructions qualified by their available context. Do not
+      invent missing steps, facts, or page citations. State when the supplied
+      answers are insufficient to provide a complete procedure or diagnosis.
+
+      Question: {query}
+
+      Community answers:
+      {combined}
+
+      Final Answer:

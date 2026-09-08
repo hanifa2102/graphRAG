@@ -1,0 +1,52 @@
+# Choose Xelsis or AI news. Restart Python/the notebook kernel after changes.
+active_ontology: Xelsis
+
+ontologies:
+  Xelsis:
+    entity_types:
+      DEVICE: The appliance being described, such as the Saeco Xelsis coffee machine.
+      COMPONENT: A physical machine part or accessory, such as the brew group or AquaClean filter.
+      CONTROL: A menu, icon, or physical control used to operate the machine.
+      FEATURE: A named capability, such as BeanMaestro, HygieSteam, or the Maintenance Dashboard.
+      SETTING: An adjustable parameter, such as grind setting, water hardness, or brewing temperature.
+      RESOURCE: An ingredient, cleaning material, or tool used during an operation.
+      DRINK: A prepared beverage, such as coffee, cappuccino, or hot water.
+      CONDITION: A symptom, component state, or operating circumstance, such as watery coffee or a clogged filter.
+      ACTION: An operation, maintenance procedure, or individual procedural step.
+      DIAGNOSTIC_CASE: One troubleshooting entry linking a symptom to its specific possible cause and associated remedy; use a distinct descriptive name for each entry.
+
+    relation_types:
+      HAS_COMPONENT: A device or component contains a physical component.
+      HAS_FEATURE: A device provides a named capability.
+      HAS_SETTING: A device, component, or feature has an adjustable parameter.
+      ACCESSED_VIA: An action, feature, or setting is accessed through a control.
+      ACTS_ON: An action operates on a device or component.
+      USES: An action or feature uses a resource or component.
+      PRODUCES: An action produces a drink.
+      HAS_STEP: A procedure includes an individual action step.
+      PRECEDES: An action comes before another action within the same procedure.
+      REQUIRES_CONDITION: An action requires a specified condition to hold.
+      MAY_CAUSE: A condition can lead to another condition; this is a possible cause, not a confirmed diagnosis.
+      PREVENTS: An action or feature prevents an undesirable condition as stated by the source.
+      HAS_SYMPTOM: A diagnostic case has an observed symptom represented as a condition.
+      HAS_POSSIBLE_CAUSE: A diagnostic case has a specific possible cause represented as a condition.
+      HAS_REMEDY: A diagnostic case has an associated corrective action.
+
+  AI news:
+    entity_types:
+      ORGANIZATION: A company, institution, or other organization involved in AI copyright or governance.
+      PERSON: An individual mentioned in the source article.
+      LEGISLATION: A law, bill, or legislative framework.
+      LEGAL_CASE: A lawsuit or other legal proceeding.
+      CONCEPT: An idea or topic such as copyright, fair use, or intellectual property.
+      GOVERNMENT: A government or governmental authority.
+      AI_SYSTEM: An AI model, product, or system.
+    relation_types:
+      FILED_AGAINST: The source filed a legal action against the target.
+      DEFENDANT_IN: The source is a defendant in the target legal case.
+      REGULATES: The source regulates the target.
+      ADVOCATES_FOR: The source supports or advocates for the target.
+      TRAINED_ON: The source AI system was trained on the target data or material.
+      PART_OF: The source is part of the target.
+      REFERENCES: The source references the target.
+      OPPOSES: The source opposes the target.
