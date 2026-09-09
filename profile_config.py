@@ -11,11 +11,26 @@ def load_profiles(path=PROFILE_FILE):
     profiles = document.get('profiles') if isinstance(document, dict) else None
     if not isinstance(profiles, dict) or not profiles:
         raise ValueError('profiles.yaml must contain a nonempty profiles mapping.')
-    required = {'input_type', 'input_file', 'pages', 'pdf_chunk_size', 'chunk_overlap',
+    required = {'input_type', 'input_file', 'pdf_chunk_size', 'chunk_overlap',
                 'force_rebuild', 'output_prefix', 'questions', 'llm'}
     for name, config in profiles.items():
-        if not isinstance(name, str) or not isinstance(config, dict) or required - config.keys():
-            raise ValueError(f'Incomplete profile settings for {name!r}.')
+        if not isinstance(name, str) or not isinstance(config, dict):
+            raise ValueError(f'Invalid profile settings for {name!r}: expected a named mapping.')
+        missing = required - config.keys()
+        if missing:
+            raise ValueError(f'Incomplete profile settings for {name!r}: missing {sorted(missing)}.')
+        modes = [key for key in ('pages', 'sections', 'section_ranges') if config.get(key) is not None]
+        if len(modes) > 1:
+            raise ValueError(f'{name}: choose only one of pages, sections, or section_ranges.')
+        ranges = config.get('section_ranges')
+        if ranges is not None and (
+            not isinstance(ranges, list) or not ranges or any(
+                not isinstance(pair, (list, tuple)) or len(pair) != 2
+                or any(not isinstance(title, str) or not title.strip() for title in pair)
+                for pair in ranges
+            )
+        ):
+            raise ValueError(f'{name}: section_ranges must be a nonempty list of [title, next_title] pairs.')
         if config['input_type'] != 'pdf' or not str(config['input_file']).lower().endswith('.pdf'):
             raise ValueError(f'{name}: input must be a PDF.')
         size, overlap = config['pdf_chunk_size'], config['chunk_overlap']
@@ -31,11 +46,14 @@ def load_profiles(path=PROFILE_FILE):
 
 
 def resolve_profile(value):
-    normalized = value.strip().lower().replace('_', ' ').replace('-', ' ')
+    def normalize(name):
+        return ' '.join(name.strip().lower().replace('_', ' ').replace('-', ' ').split())
+
+    normalized = normalize(value)
     for name in PROFILES:
-        if name.lower() == normalized:
+        if normalize(name) == normalized:
             return name
-    raise ValueError(f'Unknown profile {value!r}. Choose xelsis or ai_news.')
+    raise ValueError(f'Unknown profile {value!r}. Choose one of {list(PROFILES)}.')
 
 
 PROFILES = load_profiles()

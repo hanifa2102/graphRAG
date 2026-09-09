@@ -1,145 +1,314 @@
-# Selected by active_ontology in ontology.yaml. Profile names must match.
-# Keep all placeholders shown below. Use {{ and }} for literal braces.
-# Restart Python/the notebook kernel after editing.
 prompts:
   AI news:
-    extraction: |
-      -Goal-
-      Given a news article about AI copyright, governance, or intellectual property,
-      identify the entities and their relationships supported by the article.
-      Extract up to {max_knowledge_triplets} entity-relation triplets.
+    extraction: "-Goal-\nGiven a news article about AI copyright, governance, or intellectual property,\nidentify\
+      \ the entities and their relationships supported by the article.\nExtract up to {max_knowledge_triplets} entity-relation\
+      \ triplets.\n\n-Allowed Entity Types-\n{entity_types}\n\n-Allowed Relationship Types-\n{relation_types}\n\n\
+      -Steps-\n1. Identify entities. For each, return its name, allowed type, and a brief\n   description of its\
+      \ role in AI copyright or governance.\n2. Identify relationships. For each, return source and target entity\
+      \ names,\n   an allowed relation type, and a description explaining the connection.\n3. Preserve direction,\
+      \ attribution, and legal status. Do not present an\n   allegation or an unresolved legal argument as an established\
+      \ finding.\nUse consistent entity names and only the allowed labels.\n\n-Source Text-\n{text}\n"
+    community_summary: 'You are analysing a cluster from news articles about AI copyright,
 
-      -Allowed Entity Types-
-      {entity_types}
-
-      -Allowed Relationship Types-
-      {relation_types}
-
-      -Steps-
-      1. Identify entities. For each, return its name, allowed type, and a brief
-         description of its role in AI copyright or governance.
-      2. Identify relationships. For each, return source and target entity names,
-         an allowed relation type, and a description explaining the connection.
-      3. Preserve direction, attribution, and legal status. Do not present an
-         allegation or an unresolved legal argument as an established finding.
-      Use consistent entity names and only the allowed labels.
-
-      -Source Text-
-      {text}
-
-    community_summary: |
-      You are analysing a cluster from news articles about AI copyright,
       governance, and intellectual property.
 
+
       Entities:
+
       {entities_text}
 
+
       Relationships:
+
       {relationships_text}
+
 
       Write a concise briefing (3-5 sentences) identifying the main organizations,
+
       people, legal cases, or topics; explain their connections and legal or
+
       regulatory context. Highlight disputes, policy positions, and tensions.
+
       Use only the supplied information and preserve attribution and uncertainty.
+
       Briefing:
 
-    community_answer: |
-      Answer the AI copyright or governance question using only this summary.
+      '
+    community_answer: 'Answer the AI copyright or governance question using only this summary.
+
       Preserve the distinction between allegations, arguments, and legal findings.
+
       If the summary is not relevant, reply exactly: No relevant information.
 
+
       Community summary:
+
       {summary}
 
+
       Question: {query}
+
       Answer:
 
-    aggregation: |
-      Synthesize these community answers into a clear response to the question
+      '
+    aggregation: 'Synthesize these community answers into a clear response to the question
+
       about AI copyright or governance. Remove redundancy, retain relevant facts,
+
       and preserve disagreements, attribution, and uncertainty. Do not add facts
+
       or citations that are absent from the supplied answers.
+
 
       Question: {query}
 
+
       Community answers:
+
       {combined}
+
 
       Final Answer:
 
+      '
   Xelsis:
-    extraction: |
-      -Goal-
-      Extract operation, maintenance, and troubleshooting knowledge from the
-      supplied Saeco Xelsis manual excerpt.
-      Extract up to {max_knowledge_triplets} entity-relation triplets.
+    extraction: "-Goal-\nExtract operation, maintenance, and troubleshooting knowledge from the\nsupplied Saeco\
+      \ Xelsis manual excerpt.\nExtract up to {max_knowledge_triplets} entity-relation triplets.\n\n-Allowed Entity\
+      \ Types-\n{entity_types}\n\n-Allowed Relationship Types-\n{relation_types}\n\n-Steps-\n1. Return each entity's\
+      \ name, allowed type, and description. Return each\n   relationship's source, target, allowed relation, and\
+      \ description.\n2. Use consistent names for components. Represent each troubleshooting\n   symptom-cause-remedy\
+      \ entry as a distinct DIAGNOSTIC_CASE, linked using\n   HAS_SYMPTOM, HAS_POSSIBLE_CAUSE, and HAS_REMEDY. Do\
+      \ not mix remedies\n   belonging to different causes of the same symptom.\n3. Preserve causal direction and\
+      \ distinguish possible causes from confirmed\n   faults. Do not classify explicitly normal behavior as a fault.\n\
+      4. Keep schedules, thresholds, units, waiting times, prerequisites, and\n   prohibitions in descriptions,\
+      \ attached to the relevant action or condition.\n   Scope procedural steps and PRECEDES links to their specific\
+      \ procedure.\n5. Carry forward table headings and blank-cell context only when supported\n   by the supplied\
+      \ excerpt. Mark incomplete procedures and preserve differing\n   instructions with their source context; do\
+      \ not invent missing steps.\nUse only the allowed labels and information supported by the excerpt.\n\n-Source\
+      \ Text-\n{text}\n"
+    community_summary: 'Summarize this cluster of Saeco Xelsis operation, maintenance, and
 
-      -Allowed Entity Types-
-      {entity_types}
-
-      -Allowed Relationship Types-
-      {relation_types}
-
-      -Steps-
-      1. Return each entity's name, allowed type, and description. Return each
-         relationship's source, target, allowed relation, and description.
-      2. Use consistent names for components. Represent each troubleshooting
-         symptom-cause-remedy entry as a distinct DIAGNOSTIC_CASE, linked using
-         HAS_SYMPTOM, HAS_POSSIBLE_CAUSE, and HAS_REMEDY. Do not mix remedies
-         belonging to different causes of the same symptom.
-      3. Preserve causal direction and distinguish possible causes from confirmed
-         faults. Do not classify explicitly normal behavior as a fault.
-      4. Keep schedules, thresholds, units, waiting times, prerequisites, and
-         prohibitions in descriptions, attached to the relevant action or condition.
-         Scope procedural steps and PRECEDES links to their specific procedure.
-      5. Carry forward table headings and blank-cell context only when supported
-         by the supplied excerpt. Mark incomplete procedures and preserve differing
-         instructions with their source context; do not invent missing steps.
-      Use only the allowed labels and information supported by the excerpt.
-
-      -Source Text-
-      {text}
-
-    community_summary: |
-      Summarize this cluster of Saeco Xelsis operation, maintenance, and
       troubleshooting knowledge using only the supplied information.
 
+
       Entities:
+
+      {entities_text}
+
+
+      Relationships:
+
+      {relationships_text}
+
+
+      Write a concise briefing (3-5 sentences). Identify the relevant components,
+
+      symptoms, possible causes, and actions. Keep each diagnostic case''s cause
+
+      paired with its own remedy. Preserve maintenance frequencies, thresholds,
+
+      procedural order, prerequisites, prohibitions, and uncertainty. Do not
+
+      infer missing steps or treat a possible cause as a confirmed diagnosis.
+
+      Briefing:
+
+      '
+    community_answer: 'Answer the Xelsis question using only this community summary. Distinguish
+
+      possible causes and pair each with its associated remedy. Preserve schedules,
+
+      conditions, and procedural order; acknowledge missing instructions.
+
+      If the summary is not relevant, reply exactly: No relevant information.
+
+
+      Community summary:
+
+      {summary}
+
+
+      Question: {query}
+
+      Answer:
+
+      '
+    aggregation: 'Combine these community answers into a clear answer about the Saeco Xelsis.
+
+      Remove redundancy, keep each possible cause paired with its remedy, and
+
+      preserve maintenance intervals, conditions, warnings, and step order.
+
+      Keep conflicting instructions qualified by their available context. Do not
+
+      invent missing steps, facts, or page citations. State when the supplied
+
+      answers are insufficient to provide a complete procedure or diagnosis.
+
+
+      Question: {query}
+
+
+      Community answers:
+
+      {combined}
+
+
+      Final Answer:
+
+      '
+  Half_PSD:
+    extraction: '-Role-
+
+      You are a reliability engineer extracting one evidence-grounded Candidate Causal Graph for the Half-Height
+      Platform Screen Door system, focused on the Door Control Unit (DCU). All entities and relationships belong
+      to one graph that will later undergo community detection.
+
+
+      -Goal-
+
+      Extract up to {max_knowledge_triplets} distinct, well-supported entity-relation triplets from the supplied
+      manual excerpt. Capture DCU system context, components and connections, commands and status signals, monitored
+      or controlled parameters, operating states and events, explicitly stated faults, initialization, reset, replacement,
+      tests, prerequisites, and procedural order. Prefer a smaller graph with strong textual support over a larger
+      speculative graph.
+
+
+      -Allowed Entity Types-
+
+      {entity_types}
+
+
+      -Allowed Relationship Types-
+
+      {relation_types}
+
+
+      -Entity Rules-
+
+      1. Return each entity''s canonical name, one allowed type, and a concise description based only on the excerpt.
+
+      2. Normalize DCU to Door Control Unit, PSCC to Platform Screen Control Cabinet, SMT to System Maintenance
+      Tool, and PSD System to Platform Screen Door System. Do not create acronym and full-name duplicates.
+
+      3. Keep different concepts separate. Open Command is a SIGNAL, while Door Open is a STATE. Doors Closed and
+      Locked Status is a SIGNAL, while Door Closed and Locked is a STATE. Motor Current is a PARAMETER, while Motor
+      Current Increase is a STATE.
+
+      4. Use FAULT only for an explicitly stated malfunction, alarm, abnormal condition, or missing expected function.
+      A reset, replacement, inspection, or test procedure alone is not evidence of a fault.
+
+      5. Use ACTION for discrete operational or maintenance interventions. Use EVENT for time-bounded operation,
+      detection, response, initialization, or state transition.
+
+      6. Use specific singular technical names. Do not create vague entities such as Equipment, Problem, Issue,
+      Procedure, Status, Signal, Parameter, or System when a more specific name is available.
+
+      7. Do not extract section, chapter, page, table, figure, or step numbers, headings, warning labels, or document
+      titles as entities.
+
+      8. Do not extract an entity unless it participates in at least one relationship, except the central subject
+      of the excerpt.
+
+
+      -Relationship Rules-
+
+      1. Preserve direction exactly. Every source and target must exactly match an entity name in the entities list.
+
+      2. PART_OF expresses membership. CONNECTED_TO expresses an explicit interface. Neither implies causation.
+
+      3. For information flow, use sender SENDS signal and receiver RECEIVES signal.
+
+      4. MONITORS means observes or supervises. CONTROLS means regulates. Neither means CAUSES.
+
+      5. HAS_STATE links a component or system to an explicitly associated state or mode.
+
+      6. Use CAUSES only when the excerpt directly states causality or describes an unambiguous mechanism with clear
+      direction. Do not infer causality from proximity, connectivity, monitoring, control, headings, procedural
+      order, or the existence of a maintenance procedure.
+
+      7. Use INDICATES when an observation provides diagnostic evidence. Do not reverse cause and indicator. If
+      obstruction produces increased motor current, obstruction CAUSES the increase; if the increase is used to
+      recognize obstruction, it INDICATES obstruction.
+
+      8. Use DETECTS when a component or system identifies a condition, event, state, or fault. Use TRIGGERS for
+      an explicitly described controller response.
+
+      9. Use REQUIRES for an explicit precondition and PRECEDES for temporal or procedural order. PRECEDES does
+      not imply CAUSES.
+
+      10. Use MITIGATES only if the excerpt explicitly connects an action to reducing, clearing, resolving, or addressing
+      a named fault or abnormal state. Never assume Reset DCU or Replace DCU proves that the DCU caused a symptom.
+
+      11. Use TESTS when an action checks a component, function, signal, parameter, or state.
+
+      12. Ignore instructions whose meaning depends entirely on an unseen image, schematic, graphical callout, or
+      connector label. Extract any independently understandable text from the same instruction.
+
+      13. Remove duplicate entities and relationships. Reuse the same canonical DCU-centred entity names across
+      excerpts. Do not force unsupported edges merely to connect the graph.
+
+
+      -Validation-
+
+      Before returning the result, verify that: (a) every entity and relation uses an allowed label; (b) every relationship
+      endpoint exists in the entity list; (c) direction is correct; (d) commands, statuses, states, parameters,
+      events, faults, and actions remain distinct; (e) procedural order is not represented as causality; (f) maintenance
+      action is not treated as proof of root cause; and (g) no external engineering knowledge or unsupported inference
+      has been added.
+
+
+      -Source Text-
+
+      {text}
+
+      '
+    community_summary: 'You are analysing one community from a Candidate Causal Graph for a Half-Height Platform
+      Screen Door system, focused on the Door Control Unit.
+
+      Entities:
+
       {entities_text}
 
       Relationships:
+
       {relationships_text}
 
-      Write a concise briefing (3-5 sentences). Identify the relevant components,
-      symptoms, possible causes, and actions. Keep each diagnostic case's cause
-      paired with its own remedy. Preserve maintenance frequencies, thresholds,
-      procedural order, prerequisites, prohibitions, and uncertainty. Do not
-      infer missing steps or treat a possible cause as a confirmed diagnosis.
+      Write a concise engineering briefing of 3-5 sentences using only the supplied graph information. Identify
+      the main components, systems, signals, parameters, states, events, faults, and actions; explain their important
+      connections; and clearly distinguish causal, diagnostic, control, monitoring, structural, and procedural relationships.
+      Mention explicitly supported initialization, reset, replacement, or testing behaviour where relevant. Do not
+      add missing causes, outcomes, steps, or engineering assumptions.
+
       Briefing:
 
-    community_answer: |
-      Answer the Xelsis question using only this community summary. Distinguish
-      possible causes and pair each with its associated remedy. Preserve schedules,
-      conditions, and procedural order; acknowledge missing instructions.
-      If the summary is not relevant, reply exactly: No relevant information.
+      '
+    community_answer: 'Answer the Half-Height Platform Screen Door or DCU question using only this community summary.
+      Preserve relationship direction and distinguish causes from indicators, monitoring, control, connectivity,
+      and procedural sequence. Do not treat a reset or replacement procedure as proof of a DCU root cause. If the
+      summary is not relevant, reply exactly: No relevant information.
 
       Community summary:
+
       {summary}
 
       Question: {query}
+
       Answer:
 
-    aggregation: |
-      Combine these community answers into a clear answer about the Saeco Xelsis.
-      Remove redundancy, keep each possible cause paired with its remedy, and
-      preserve maintenance intervals, conditions, warnings, and step order.
-      Keep conflicting instructions qualified by their available context. Do not
-      invent missing steps, facts, or page citations. State when the supplied
-      answers are insufficient to provide a complete procedure or diagnosis.
+      '
+    aggregation: 'Synthesize the supplied community answers into one clear response about the Half-Height Platform
+      Screen Door system or Door Control Unit. Remove redundancy while preserving relationship direction, procedural
+      order, preconditions, uncertainty, and the distinction between causal, diagnostic, monitoring, control, structural,
+      and maintenance relationships. Do not invent missing causes, outcomes, steps, facts, or citations. State when
+      the supplied answers are insufficient for a complete causal explanation, diagnosis, or procedure.
 
       Question: {query}
 
       Community answers:
+
       {combined}
 
       Final Answer:
+
+      '

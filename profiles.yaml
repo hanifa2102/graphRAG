@@ -1,4 +1,3 @@
-# Shared PDF, graph, questions, and LLM settings for each profile.
 profiles:
   Xelsis:
     input_type: pdf
@@ -36,6 +35,39 @@ profiles:
     - Which companies are involved in AI copyright disputes, and what are their positions?
     - How are different governments approaching AI governance?
     - What is the role of fair use in AI copyright disputes?
+    llm:
+      provider: qwen
+      extraction_model: Qwen3.8-27B
+      query_model: Qwen3.8-27B
+      qwen_base_url: http://192.168.10.45:4000/v1
+      num_workers: 2
+      max_paths_per_chunk: 20
+      max_cluster_size: 10
+      request_timeout: 180.0
+      request_max_retries: 5
+  Half_PSD:
+    input_type: pdf
+    input_file: data/152E-GEN-8002(doc)-C.pdf
+    section_ranges:
+    - - 5 System Overview
+      - 6 System and Sub-System operation Description
+    - - 6.2.1 Door Control Unit (DCU)
+      - 6.2.2 Operator Control
+    - - 7.3.3 Initialization of DCU
+      - 7.7.6 All Doors Closed but “Closed and Locked” Signal is missing
+    - - 12.1 CM01 – REPLACE DCU
+      - 12.2 CM02 – RESET DCU
+    - - 12.2 CM02 – RESET DCU
+      - 12.3 CM03 – RESET PLC IN PSCC
+    pdf_chunk_size: 1000
+    chunk_overlap: 100
+    force_rebuild: false
+    output_prefix: half_psd
+    questions:
+    - What components, systems, signals, and parameters interact with the Door Control Unit?
+    - What conditions and observations are associated with abnormal DCU or doorway behaviour?
+    - What steps and preconditions are required to initialize, reset, or replace the Door Control Unit?
+    - Which relationships in the graph are causal, diagnostic, control, monitoring, or procedural relationships?
     llm:
       provider: qwen
       extraction_model: Qwen3.8-27B

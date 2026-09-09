@@ -1,6 +1,4 @@
-# Choose Xelsis or AI news. Restart Python/the notebook kernel after changes.
 active_ontology: Xelsis
-
 ontologies:
   Xelsis:
     entity_types:
@@ -13,8 +11,8 @@ ontologies:
       DRINK: A prepared beverage, such as coffee, cappuccino, or hot water.
       CONDITION: A symptom, component state, or operating circumstance, such as watery coffee or a clogged filter.
       ACTION: An operation, maintenance procedure, or individual procedural step.
-      DIAGNOSTIC_CASE: One troubleshooting entry linking a symptom to its specific possible cause and associated remedy; use a distinct descriptive name for each entry.
-
+      DIAGNOSTIC_CASE: One troubleshooting entry linking a symptom to its specific possible cause and associated
+        remedy; use a distinct descriptive name for each entry.
     relation_types:
       HAS_COMPONENT: A device or component contains a physical component.
       HAS_FEATURE: A device provides a named capability.
@@ -31,7 +29,6 @@ ontologies:
       HAS_SYMPTOM: A diagnostic case has an observed symptom represented as a condition.
       HAS_POSSIBLE_CAUSE: A diagnostic case has a specific possible cause represented as a condition.
       HAS_REMEDY: A diagnostic case has an associated corrective action.
-
   AI news:
     entity_types:
       ORGANIZATION: A company, institution, or other organization involved in AI copyright or governance.
@@ -50,3 +47,47 @@ ontologies:
       PART_OF: The source is part of the target.
       REFERENCES: The source references the target.
       OPPOSES: The source opposes the target.
+  Half_PSD:
+    entity_types:
+      SYSTEM: A system, subsystem, controller platform, or functional assembly, such as the Platform Screen Door
+        System, Doorway, Platform Screen Control Cabinet, System Maintenance Tool, or Signalling System.
+      COMPONENT: A discrete physical, electrical, electronic, or electromechanical item, such as the Door Control
+        Unit, drive motor, door leaf, locking block, limit switch, or circuit breaker.
+      SIGNAL: A command, status, indication, alarm, report, or communicated data item, such as an Open Command,
+        Enable Command, Doors Closed and Locked Status, or CAN data.
+      PARAMETER: A measured, monitored, configured, or controlled quantity, such as motor current, door speed, door
+        position, clamp force, or a delay.
+      STATE: A persistent operating state, mode, configuration, or physical condition, such as DCU Powered Off,
+        DCU Initialized, Manual Mode, Door Closed and Locked, or Physical Obstruction Present.
+      EVENT: A time-bounded operational occurrence, detection, response, or state transition, such as Obstruction
+        Detected, Door Movement Stopped, Door Reclosing, or DCU Initialization.
+      FAULT: An explicitly stated failure, malfunction, alarm, abnormal condition, or missing expected function.
+        A reset or replacement procedure alone is not evidence of a fault.
+      ACTION: A discrete operational or maintenance intervention, such as Reset DCU, Replace DCU, Power Off DCU,
+        Inspect Connection, Restore Power, or Perform Functional Test.
+    relation_types:
+      PART_OF: The source component or subsystem belongs to the target system or assembly.
+      CONNECTED_TO: The source has an explicitly described physical, electrical, serial, hardwired, or data-bus
+        connection to the target.
+      SENDS: The source originates or transmits the target signal or communicated data item.
+      RECEIVES: The source receives the target signal or communicated data item.
+      MONITORS: The source component or system observes, measures, checks, or supervises the target signal, parameter,
+        state, event, or fault.
+      CONTROLS: The source regulates the target component, parameter, state, or event; this does not by itself mean
+        causation.
+      HAS_STATE: The source component or system has the target explicitly described state, mode, configuration,
+        or physical condition.
+      CAUSES: The source directly produces the target, with explicit or unambiguous causal support in the source
+        text.
+      INDICATES: The source observation, signal, parameter, or state provides diagnostic evidence of the target;
+        indication is not causation.
+      DETECTS: The source component or system identifies the target condition, state, event, or fault.
+      TRIGGERS: The source initiates the target controller response, operational event, state change, or action.
+      PREVENTS: The source explicitly stops the target state or event from occurring or being achieved.
+      REQUIRES: The source action or event explicitly depends on the target as a precondition.
+      PRECEDES: The source occurs before the target in an explicitly stated temporal or procedural sequence; sequence
+        is not causation.
+      MITIGATES: The source action explicitly reduces, clears, resolves, or addresses the target fault or abnormal
+        state.
+      TESTS: The source action checks the operation, function, state, signal, parameter, component, or system represented
+        by the target.
