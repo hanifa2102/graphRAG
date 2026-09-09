@@ -138,6 +138,30 @@ class GraphRAGStore(SimplePropertyGraphStore):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.community_summaries = {}
+        self.community_members = {}
+        self.community_primary = {}
+        self.community_membership_origin = "unavailable"
+
+    def upsert_relations(self, relations: list[Relation]) -> None:
+        """Merge source occurrences when a triple appears in multiple chunks/pages."""
+        by_triple = {
+            (item.source_id, item.label, item.target_id): item
+            for item in self.graph.relations.values()
+        }
+        for relation in relations:
+            key = (relation.source_id, relation.label, relation.target_id)
+            previous = by_triple.get(key)
+            occurrences = []
+            for item in (previous, relation):
+                if item is not None:
+                    for provenance in item.properties.get("provenance", []):
+                        if provenance not in occurrences:
+                            occurrences.append(provenance)
+            relation.properties["provenance"] = occurrences
+            super().upsert_relations([relation])
+            if previous is not None:
+                previous.properties["provenance"] = occurrences
+            by_triple[key] = previous if previous is not None else relation
 
     def build_communities(
         self,
@@ -151,6 +175,8 @@ class GraphRAGStore(SimplePropertyGraphStore):
         if not nx_graph.nodes:
             print("Graph is empty; no communities to detect.")
             self.community_summaries = {}
+            self.community_members = {}
+            self.community_primary = {}
             return self.community_summaries
 
         print(
@@ -160,14 +186,36 @@ class GraphRAGStore(SimplePropertyGraphStore):
         clusters = hierarchical_leiden(
             nx_graph,
             max_cluster_size=max_cluster_size,
+            random_seed=42,
         )
         print(f"Found {len({cluster.cluster for cluster in clusters})} communities")
 
+        self._record_community_members(clusters, "built")
         community_info = self._collect_community_info(nx_graph, clusters)
         self.community_summaries = {}
         self._generate_summaries(community_info, summary_llm)
         print(f"Generated {len(self.community_summaries)} community summaries")
         return self.community_summaries
+
+    def _record_community_members(self, clusters: Sequence[Any], origin: str) -> None:
+        self.community_members = {}
+        self.community_primary = {}
+        for item in clusters:
+            members = self.community_members.setdefault(item.cluster, [])
+            if item.node not in members:
+                members.append(item.node)
+            if item.is_final_cluster:
+                self.community_primary[item.node] = item.cluster
+        self.community_membership_origin = origin
+
+    def ensure_community_members(self) -> None:
+        """Recover visualization groups for old checkpoints without guessing summary IDs."""
+        if self.community_members or not self.community_summaries:
+            return
+        graph = self.to_networkx()
+        if graph.number_of_edges():
+            clusters = hierarchical_leiden(graph, max_cluster_size=10, random_seed=42)
+            self._record_community_members(clusters, "recovered")
 
     def to_networkx(self) -> nx.Graph:
         """Convert the entity portion of the property graph to NetworkX."""

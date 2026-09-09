@@ -78,7 +78,7 @@
 
   /* ── Sidebar ─────────────────────────────────────────────────── */
   .sidebar {
-    width: 220px;
+    width: 280px;
     background: var(--surface);
     border-right: 1px solid var(--border);
     display: flex;
@@ -208,11 +208,20 @@
 
   /* ── Links ───────────────────────────────────────────────────── */
   .link {
+    fill: none;
+    cursor: pointer;
+    pointer-events: stroke;
     stroke: #1e3a5f;
     stroke-opacity: 0.7;
-    stroke-width: 1.5px;
+    stroke-width: 3px;
     transition: stroke 0.2s, stroke-opacity 0.2s;
   }
+
+  .link:hover { stroke: var(--accent); stroke-width: 7px; }
+  #community-details { font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 300px; overflow-y: auto; }
+  .community-select { width: 100%; margin-bottom: 10px; padding: 7px; color: var(--text); background: var(--surface); border: 1px solid var(--border); }
+  #edge-details { font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; white-space: pre-wrap; }
+  #edge-details p { margin: 8px 0; }
 
   .link.highlighted { stroke: var(--accent); stroke-opacity: 1; stroke-width: 2px; }
   .link.dimmed      { stroke-opacity: 0.08; }
@@ -232,7 +241,7 @@
   /* ── Nodes ───────────────────────────────────────────────────── */
   .node circle {
     stroke: rgba(255,255,255,0.15);
-    stroke-width: 1.5px;
+    stroke-width: 3px;
     cursor: pointer;
     transition: stroke 0.15s, stroke-width 0.15s, filter 0.15s;
   }
@@ -311,7 +320,7 @@
 <body>
 
 <header>
-  <h1>Knowledge Graph — AI Copyright &amp; Governance</h1>
+  <h1>Knowledge Graph</h1>
   <div class="stats">
     nodes <span id="stat-nodes">—</span> &nbsp;|&nbsp;
     edges <span id="stat-edges">—</span> &nbsp;|&nbsp;
@@ -326,6 +335,25 @@
 
     <div class="search-wrap">
       <input type="search" id="search" placeholder="Search nodes…">
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Communities</div>
+      <label for="color-mode">Color nodes by</label>
+      <select id="color-mode" class="community-select">
+        <option value="community">Community</option>
+        <option value="type">Entity type</option>
+      </select>
+      <p id="color-status" style="font-size:12px;line-height:1.5"></p>
+      <label for="community-select">Filter graph by community</label>
+      <select id="community-select" class="community-select"><option value="all">All communities</option></select>
+      <p style="font-size:12px;line-height:1.5">Choose a group to show only its nodes and connecting edges. Choose All communities to restore the full graph.</p>
+      <div id="community-details" aria-live="polite"></div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Edge provenance</div>
+      <div id="edge-details" aria-live="polite">Hover an edge to see its source pages and text.</div>
     </div>
 
     <div class="sidebar-section">
@@ -394,6 +422,13 @@ const COLOR_MAP = {
   OTHER:        "#94a3b8",
 };
 
+// Every active ontology needs colors, including custom and Xelsis types.
+const extraTypes = [...new Set(GRAPH_DATA.nodes.map(n => n.type))]
+  .filter(type => !(type in COLOR_MAP)).sort();
+extraTypes.forEach((type, index) => {
+  COLOR_MAP[type] = d3.interpolateRainbow(index / Math.max(1, extraTypes.length));
+});
+
 function nodeColor(type) {
   return COLOR_MAP[type] || COLOR_MAP.OTHER;
 }
@@ -420,6 +455,15 @@ svg.call(zoom);
 // ═══════════════════════════════════════════════════════════════════════════
 const nodes = GRAPH_DATA.nodes.map(d => ({ ...d }));
 const links = GRAPH_DATA.links.map(d => ({ ...d }));
+const communities = GRAPH_DATA.community_details || [];
+let selectedCommunity = "all";
+let colorMode = communities.length ? "community" : "type";
+const communityColor = id => id == null ? "#94a3b8" : d3.interpolateRainbow((Number(id) * 0.61803398875) % 1);
+const displayNodeColor = d => colorMode === "community" ? communityColor(d.community) : nodeColor(d.type);
+function communityMatches(d) {
+  return selectedCommunity === "all" || (selectedCommunity === "unassigned"
+    ? d.community == null : (d.community_ids || []).some(id => String(id) === selectedCommunity));
+}
 
 // Compute degree for node sizing
 const degreeMap = {};
@@ -449,9 +493,27 @@ const linkGroup = root.append("g").attr("class", "links");
 const labelGroup = root.append("g").attr("class", "edge-labels");
 const nodeGroup  = root.append("g").attr("class", "nodes");
 
-const link = linkGroup.selectAll("line")
+// Separate distinct predicates and reverse relationships so each can be hovered.
+const edgePairs = new Map();
+links.forEach(d => {
+  const key = JSON.stringify([d.source.id, d.target.id].sort());
+  if (!edgePairs.has(key)) edgePairs.set(key, []);
+  edgePairs.get(key).push(d);
+});
+edgePairs.forEach(group => group.forEach((d, i) => {
+  d.curveOffset = (i - (group.length - 1) / 2) * 32;
+  d.loopSize = 55 + i * 18;
+}));
+function edgePath(d) {
+  const a = d.source, b = d.target;
+  if (a.id === b.id) return `M${a.x},${a.y} C${a.x+d.loopSize},${a.y-d.loopSize} ${a.x-d.loopSize},${a.y-d.loopSize} ${a.x},${a.y}`;
+  const dx = b.x-a.x, dy = b.y-a.y, length = Math.hypot(dx, dy) || 1;
+  const offset = d.curveOffset * (a.id < b.id ? 1 : -1);
+  return `M${a.x},${a.y} Q${(a.x+b.x)/2-dy/length*offset},${(a.y+b.y)/2+dx/length*offset} ${b.x},${b.y}`;
+}
+const link = linkGroup.selectAll("path")
   .data(links)
-  .join("line")
+  .join("path")
   .attr("class", "link")
   .attr("marker-end", "url(#arrow)");
 
@@ -476,7 +538,7 @@ const node = nodeGroup.selectAll("g")
 // Circle
 node.append("circle")
   .attr("r", nodeRadius)
-  .attr("fill", d => nodeColor(d.type));
+  .attr("fill", displayNodeColor);
 
 // Label (shown below circle for large nodes, hidden for tiny ones)
 node.append("text")
@@ -489,11 +551,7 @@ node.append("text")
 // SIMULATION TICK
 // ═══════════════════════════════════════════════════════════════════════════
 simulation.on("tick", () => {
-  link
-    .attr("x1", d => d.source.x)
-    .attr("y1", d => d.source.y)
-    .attr("x2", d => d.target.x)
-    .attr("y2", d => d.target.y);
+  link.attr("d", edgePath);
 
   edgeLabel
     .attr("x", d => (d.source.x + d.target.x) / 2)
@@ -507,6 +565,57 @@ simulation.on("tick", () => {
 // ═══════════════════════════════════════════════════════════════════════════
 let selectedNode = null;
 
+function excerptContext(text, edge) {
+  // Locate a useful preview using entity names and relationship wording.
+  // This is a text match, not a claim of exact triple-level evidence.
+  const names = [edge.source.label || edge.source.id, edge.target.label || edge.target.id]
+    .filter(Boolean).map(name => name.toLowerCase());
+  const ignored = new Set(["the", "and", "for", "with", "from", "that", "this", "are", "has", "its", "into"]);
+  const words = [...new Set([...names, edge.description || ""].join(" ").toLowerCase()
+    .match(/[\p{L}\p{N}]{3,}/gu) || [])].filter(word => !ignored.has(word));
+  // Wrap unusually long PDF lines too, so a single extracted line cannot fill the panel.
+  const lines = text.replace(/\r\n?/g, "\n").split("\n")
+    .flatMap(line => line.match(/.{1,160}(?:\s+|$)|.{1,160}/gu) || [""]);
+  let best = 0, bestScore = -1;
+  lines.forEach((line, index) => {
+    const lower = line.toLowerCase();
+    const score = names.reduce((total, name) => total + (lower.includes(name) ? 20 : 0), 0)
+      + words.reduce((total, word) => total + (lower.includes(word) ? 1 : 0), 0);
+    if (score > bestScore) { best = index; bestScore = score; }
+  });
+  const start = Math.max(0, best - 2), end = Math.min(lines.length, best + 3);
+  return (start > 0 ? "…\n" : "") + lines.slice(start, end).join("\n").trim()
+    + (end < lines.length ? "\n…" : "");
+}
+
+function showEdgeDetails(d) {
+  const panel = document.getElementById("edge-details");
+  panel.replaceChildren();
+  const add = text => {
+    const paragraph = document.createElement("p");
+    paragraph.textContent = text;
+    panel.appendChild(paragraph);
+  };
+  add(`${d.source.label || d.source.id} —[${d.label}]→ ${d.target.label || d.target.id}`);
+  if (d.description) add(d.description);
+  const occurrences = d.provenance || [];
+  if (!occurrences.length) add("Provenance unavailable. Rebuild this graph from PDFs.");
+  occurrences.forEach(p => {
+    const location = [p.file_name || p.source || "Unknown source"];
+    if (p.page_number != null) location.push(`Page ${p.page_number}`);
+    if (p.line_start != null) location.push(`Source chunk lines ${p.line_start}–${p.line_end ?? p.line_start}`);
+    if (p.section) location.push(`Section ${p.section}`);
+    if (p.page_chunk_index != null) location.push(`Chunk ${p.page_chunk_index}`);
+    add(location.join(" · "));
+    if (p.scope === "legacy_source") add("Legacy source: rebuild from a PDF for page and line provenance.");
+    if (p.scope === "legacy_source_chunk") add("Saved source chunk: rebuild for line ranges and all source occurrences.");
+    if (p.excerpt) add(excerptContext(p.excerpt, d));
+  });
+}
+link.on("mouseenter", (event, d) => showEdgeDetails(d));
+// Keep the last hovered edge in the sidebar so its excerpt can be read/scrolled.
+document.querySelector("h1").textContent = `Knowledge Graph — ${GRAPH_DATA.profile || "PDF sources"}`;
+
 node.on("mouseover", (e, d) => {
   const connections = links.filter(l =>
     l.source.id === d.id || l.target.id === d.id
@@ -514,7 +623,8 @@ node.on("mouseover", (e, d) => {
 
   tooltip.innerHTML = `
     <div class="tt-name">${d.label}</div>
-    <div class="tt-type" style="color:${nodeColor(d.type)}">${d.type}</div>
+    <div class="tt-type" style="color:${displayNodeColor(d)}">${d.type}</div>
+    <div class="tt-desc">Community: ${d.community ?? "Unassigned"}</div>
     ${d.description ? `<div class="tt-desc">${d.description}</div>` : ""}
     <div class="tt-connections"><span>${connections}</span> connection${connections !== 1 ? "s" : ""}</div>
   `;
@@ -585,7 +695,8 @@ nodes.forEach(n => { typeCounts[n.type] = (typeCounts[n.type] || 0) + 1; });
 const hiddenTypes = new Set();
 const legendEl = document.getElementById("legend");
 
-Object.entries(COLOR_MAP).forEach(([type, color]) => {
+Object.keys(typeCounts).sort().forEach(type => {
+  const color = nodeColor(type);
   if (!typeCounts[type]) return;
   const item = document.createElement("div");
   item.className = "legend-item";
@@ -608,13 +719,78 @@ Object.entries(COLOR_MAP).forEach(([type, color]) => {
 });
 
 function applyTypeFilter() {
-  node.style("display", d => hiddenTypes.has(d.type) ? "none" : null);
+  node.style("display", d => hiddenTypes.has(d.type) || !communityMatches(d) ? "none" : null);
   link.style("display", d => {
     const sHidden = hiddenTypes.has(d.source.type);
     const tHidden = hiddenTypes.has(d.target.type);
-    return sHidden || tHidden ? "none" : null;
+    return sHidden || tHidden || !communityMatches(d.source) || !communityMatches(d.target) ? "none" : null;
   });
+  edgeLabel.style("display", d => hiddenTypes.has(d.source.type) || hiddenTypes.has(d.target.type)
+    || !communityMatches(d.source) || !communityMatches(d.target) ? "none" : null);
 }
+
+// Community selection shares the same filter as entity types.
+const communitySelect = document.getElementById("community-select");
+communities.forEach(c => {
+  const option = document.createElement("option");
+  option.value = String(c.id);
+  option.textContent = `● Community ${c.id} (${c.members.length} nodes)`;
+  option.style.color = communityColor(c.id);
+  communitySelect.appendChild(option);
+});
+if (nodes.some(d => d.community == null)) {
+  const option = document.createElement("option");
+  option.value = "unassigned";
+  option.textContent = "Unassigned nodes";
+  communitySelect.appendChild(option);
+}
+function showCommunityDetails() {
+  const panel = document.getElementById("community-details");
+  const c = communities.find(c => String(c.id) === selectedCommunity);
+  panel.style.borderLeft = "";
+  panel.style.paddingLeft = "";
+  if (!communities.length) {
+    panel.textContent = "Community assignments are missing from this export. Restart the notebook kernel, run from the top, and export again.";
+    return;
+  }
+  if (!c) {
+    panel.textContent = selectedCommunity === "unassigned" ? "Nodes without a community assignment."
+      : `${communities.length} communities. Choose one to isolate its nodes and internal edges. Colors show the most specific group; parent groups may overlap.`;
+    return;
+  }
+  const members = new Set(c.members);
+  const edges = links.filter(l => members.has(l.source.id) && members.has(l.target.id));
+  const names = nodes.filter(n => members.has(n.id)).map(n => n.label);
+  panel.textContent = `Community ${c.id} · ${names.length} nodes · ${edges.length} internal edges
+
+`
+    + (c.summary || (GRAPH_DATA.community_membership_origin === "recovered"
+      ? "Groups recovered from the graph. Rebuild communities to generate matching summaries."
+      : "No summary available.")) + "\n\nMembers:\n" + names.join("\n");
+  panel.style.borderLeft = `3px solid ${communityColor(c.id)}`;
+  panel.style.paddingLeft = "8px";
+}
+communitySelect.addEventListener("change", e => {
+  selectedCommunity = e.target.value;
+  clearSelection();
+  applyTypeFilter();
+  showCommunityDetails();
+});
+function applyColorMode(mode) {
+  colorMode = mode === "community" && communities.length ? "community" : "type";
+  document.getElementById("color-mode").value = colorMode;
+  clearSelection();
+  node.select("circle").attr("fill", displayNodeColor);
+  document.getElementById("color-status").textContent = colorMode === "community"
+    ? "Same color = same community. Gray nodes have no community assignment."
+    : "Same color = same entity type. See the Entity Types legend below.";
+}
+const colorSelect = document.getElementById("color-mode");
+colorSelect.querySelector('option[value="community"]').disabled = !communities.length;
+communitySelect.disabled = !communities.length;
+colorSelect.addEventListener("change", e => applyColorMode(e.target.value));
+applyColorMode(colorMode);
+showCommunityDetails();
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SEARCH
@@ -655,6 +831,9 @@ document.getElementById("btn-reset").addEventListener("click", () => {
 
 document.getElementById("btn-all").addEventListener("click", () => {
   hiddenTypes.clear();
+  selectedCommunity = "all";
+  communitySelect.value = "all";
+  showCommunityDetails();
   document.querySelectorAll(".legend-item").forEach(el => el.classList.remove("disabled"));
   applyTypeFilter();
   clearSelection();

@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from dotenv import load_dotenv
-from llama_index.core import Document, PropertyGraphIndex, Settings
+from llama_index.core import PropertyGraphIndex, Settings
 from llama_index.core.graph_stores.types import (
     KG_NODES_KEY,
     KG_RELATIONS_KEY,
@@ -21,7 +21,7 @@ from llama_index.llms.openai import OpenAI
 
 from .graph_rag_engine import GraphRAGExtractor, GraphRAGStore
 from .graph_rag_schema import GraphRAGSchema
-from .graph_rag_services import GraphRAGService
+from .graph_rag_services import GraphRAGService, output_path
 
 LLMProvider = Literal["openai", "qwen"]
 
@@ -113,28 +113,25 @@ class GraphRAGManager:
             num_workers=self.num_workers,
         )
 
-    def load_documents(
-        self,
-        csv_file: str | Path,
-        max_articles: int | None = None,
-    ) -> list[Document]:
-        self.documents = GraphRAGService.load_documents(csv_file, max_articles)
-        return self.documents
-
     def load_pdf_documents(
         self,
         pdf_file: str | Path,
         pages: str | Sequence[int] | None = None,
         chunk_size: int = 1000,
         chunk_overlap: int = 100,
+        *,
+        sections: str | Sequence[str] | None = None,
+        section_ranges: Sequence[tuple[str, str]] | tuple[str, str] | None = None,
     ) -> list[BaseNode]:
-        """Load selected pages from a text PDF as chunked graph input nodes."""
+        """Load pages or bookmark sections from a text PDF as graph input nodes."""
 
         self.documents = GraphRAGService.load_pdf_documents(
             pdf_file=pdf_file,
             pages=pages,
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
+            sections=sections,
+            section_ranges=section_ranges,
         )
         return self.documents
 
@@ -150,8 +147,7 @@ class GraphRAGManager:
             self.documents = documents
         if not self.documents:
             raise ValueError(
-                "No documents loaded. Call load_documents() or "
-                "load_pdf_documents() first."
+                "No documents loaded. Call load_pdf_documents() first."
             )
 
         self.extractor = self._new_extractor()
@@ -171,13 +167,17 @@ class GraphRAGManager:
             )
         return self.graph_store
 
-    def save_knowledge_graph(self, checkpoint_file: str | Path) -> Path:
+    def save_knowledge_graph(self, checkpoint_file: str | Path | None = None) -> Path:
         """Pickle graph state and summaries, excluding live LLM clients."""
 
         graph_store = self._require_graph_store()
-        checkpoint_path = Path(checkpoint_file)
+        checkpoint_path = output_path(checkpoint_file, "graph_store.pkl")
         checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+        graph_store.ensure_community_members()
         payload = {
+            "community_members": graph_store.community_members,
+            "community_primary": graph_store.community_primary,
+            "community_membership_origin": graph_store.community_membership_origin,
             "version": self.CHECKPOINT_VERSION,
             "graph": graph_store.graph,
             "community_summaries": dict(
@@ -193,10 +193,10 @@ class GraphRAGManager:
         print(f"Knowledge graph saved to '{checkpoint_path}'")
         return checkpoint_path
 
-    def load_knowledge_graph(self, checkpoint_file: str | Path) -> GraphRAGStore:
+    def load_knowledge_graph(self, checkpoint_file: str | Path | None = None) -> GraphRAGStore:
         """Load a trusted checkpoint created by ``save_knowledge_graph``."""
 
-        checkpoint_path = Path(checkpoint_file)
+        checkpoint_path = output_path(checkpoint_file, "graph_store.pkl")
         if not checkpoint_path.exists():
             raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
         with checkpoint_path.open("rb") as source:
@@ -215,6 +215,10 @@ class GraphRAGManager:
         graph_store.community_summaries = dict(
             payload["community_summaries"]
         )
+        graph_store.community_members = payload.get("community_members", {})
+        graph_store.community_primary = payload.get("community_primary", {})
+        graph_store.community_membership_origin = payload.get("community_membership_origin", "unavailable")
+        graph_store.ensure_community_members()
         self.graph_store = graph_store
         self.index = None
         print(f"Knowledge graph loaded from '{checkpoint_path}'")
@@ -224,36 +228,27 @@ class GraphRAGManager:
         )
         return graph_store
 
-    def build_and_store(
-        self,
-        csv_file: str | Path,
-        checkpoint_file: str | Path,
-        max_articles: int | None = None,
-        show_progress: bool = True,
-    ) -> GraphRAGStore:
-        """Convenience method for the complete expensive build workflow."""
-
-        self.load_documents(csv_file, max_articles)
-        graph_store = self.build_knowledge_graph(show_progress=show_progress)
-        self.save_knowledge_graph(checkpoint_file)
-        return graph_store
-
     def build_pdf_and_store(
         self,
         pdf_file: str | Path,
-        checkpoint_file: str | Path,
+        checkpoint_file: str | Path | None = None,
         pages: str | Sequence[int] | None = None,
         chunk_size: int = 1000,
         chunk_overlap: int = 100,
         show_progress: bool = True,
+        *,
+        sections: str | Sequence[str] | None = None,
+        section_ranges: Sequence[tuple[str, str]] | tuple[str, str] | None = None,
     ) -> GraphRAGStore:
-        """Load selected PDF pages, build their graph, and save a checkpoint."""
+        """Load PDF pages or sections, build their graph, and save a checkpoint."""
 
         self.load_pdf_documents(
             pdf_file=pdf_file,
             pages=pages,
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
+            sections=sections,
+            section_ranges=section_ranges,
         )
         graph_store = self.build_knowledge_graph(show_progress=show_progress)
         self.save_knowledge_graph(checkpoint_file)
@@ -264,8 +259,7 @@ class GraphRAGManager:
 
         if not self.documents:
             raise ValueError(
-                "No documents loaded. Call load_documents() or "
-                "load_pdf_documents() first."
+                "No documents loaded. Call load_pdf_documents() first."
             )
         if not 0 <= document_index < len(self.documents):
             raise IndexError(
@@ -385,9 +379,9 @@ class GraphRAGManager:
 
     def visualize(
         self,
-        graph_data_file: str | Path,
-        template_file: str | Path,
-        output_file: str | Path,
+        graph_data_file: str | Path | None = None,
+        template_file: str | Path = Path(__file__).resolve().parents[1] / "graph_template.html",
+        output_file: str | Path | None = None,
     ) -> Path:
         return GraphRAGService.visualize_graph(
             graph_store=self._require_graph_store(),

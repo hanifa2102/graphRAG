@@ -1,0 +1,48 @@
+# Shared PDF, graph, questions, and LLM settings for each profile.
+profiles:
+  Xelsis:
+    input_type: pdf
+    input_file: data/Xelsis.pdf
+    pages: 5, 7-8, 14-16, 18-21, 28-30
+    pdf_chunk_size: 1000
+    chunk_overlap: 100
+    force_rebuild: false
+    output_prefix: xelsis
+    questions:
+    - What are the possible causes of watery coffee and the remedy for each cause?
+    - What maintenance does the brew group need, and how often?
+    - When should I replace and activate the AquaClean filter?
+    - Why does coffee come out slowly, and what should I check?
+    llm:
+      provider: qwen
+      extraction_model: Qwen3.8-27B
+      query_model: Qwen3.8-27B
+      qwen_base_url: http://192.168.10.45:4000/v1
+      num_workers: 2
+      max_paths_per_chunk: 20
+      max_cluster_size: 10
+      request_timeout: 180.0
+      request_max_retries: 5
+  AI news:
+    input_type: pdf
+    input_file: data/ai_news.pdf
+    pages: null
+    pdf_chunk_size: 1000
+    chunk_overlap: 100
+    force_rebuild: false
+    output_prefix: ai_news
+    questions:
+    - What are the main legal arguments around AI copyright and training data?
+    - Which companies are involved in AI copyright disputes, and what are their positions?
+    - How are different governments approaching AI governance?
+    - What is the role of fair use in AI copyright disputes?
+    llm:
+      provider: qwen
+      extraction_model: Qwen3.8-27B
+      query_model: Qwen3.8-27B
+      qwen_base_url: http://192.168.10.45:4000/v1
+      num_workers: 2
+      max_paths_per_chunk: 20
+      max_cluster_size: 10
+      request_timeout: 180.0
+      request_max_retries: 5

@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>CausalRAG graph</title>
+<style>html,body{margin:0;padding:0;width:100%;overflow:hidden}iframe{display:block;border:0;width:100%}</style></head>
+<body><iframe id="graph" title="Interactive causal graph" sandbox="allow-scripts allow-downloads"></iframe>
+<script>
+const frame = document.getElementById('graph');
+let lastHtml;
+function send(type, extra = {}) {
+  window.parent.postMessage({isStreamlitMessage: true, type, ...extra}, '*');
+}
+window.addEventListener('message', event => {
+  if (event.source !== window.parent || event.data.type !== 'streamlit:render') return;
+  const {html, height = 800} = event.data.args;
+  frame.style.height = `${height}px`;
+  // Query submissions must not reset graph positions, filters, or hover state.
+  if (html !== lastHtml) { frame.srcdoc = html; lastHtml = html; }
+  send('streamlit:setFrameHeight', {height});
+});
+send('streamlit:componentReady', {apiVersion: 1});
+</script></body></html>
