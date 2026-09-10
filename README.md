@@ -1,155 +1,241 @@
-# GraphRAG — AI Copyright & Governance Knowledge Graph
+# CausalRAG — PDF knowledge graphs
 
-An end-to-end GraphRAG pipeline that scrapes web content about AI intellectual property and copyright, extracts entities and relationships using LLMs, builds a queryable knowledge graph, and renders it as an interactive visualization.
-
-## Overview
-
-This project combines web scraping, LLM-powered entity extraction, graph analysis, and interactive visualization to build a domain-specific Retrieval-Augmented Generation (RAG) system focused on AI copyright and governance topics.
-
-## Tech Stack
-
-| Layer | Tools |
-|-------|-------|
-| LLM / RAG | LlamaIndex, OpenAI, or local Qwen through LiteLLM |
-| Web scraping | SerpAPI, Trafilatura, YouTube Transcript API |
-| Graph analysis | NetworkX, Graspologic (Louvain community detection) |
-| Visualization | D3.js v7, vis-network 9.1.2 |
-| Data | Pandas, Pydantic |
-
-
-## Project Structure
-
-```
-graphrag/
-├── scrape_info.ipynb              # Web scraping & text enrichment
-├── graphrag_ai_copyright.ipynb    # GraphRAG pipeline, queries & visualization
-├── ai_copyright_dataset.csv       # Scraped articles/videos (810 rows)
-├── graph_data.json                # Extracted knowledge graph (nodes + edges)
-├── ai_copyright_graph.html        # Interactive visualization (generated output)
-├── graph_template.html            # HTML/D3.js template for visualization
-├── .env                           # API keys (not committed)
-└── lib/
-    ├── bindings/utils.js          # Graph interaction utilities
-    ├── vis-9.1.2/                 # vis-network library
-    └── tom-select/                # Dropdown UI component
-```
-
-## Prerequisites
-
-- Python 3.10+
-- A [SerpAPI](https://serpapi.com/) key (Google Search)
-- An OpenAI API key, a LiteLLM API key, or both depending on the selected provider
-- API key variables added in the `.env` file
+Build and query a knowledge graph from text-based PDFs using the `Xelsis` or
+`AI news` ontology and prompt profile. The notebook runs PDF loading, extraction,
+Leiden community detection, summarization, visualization, and queries.
 
 ## Setup
 
-1. **Clone the repo and create a virtual environment:**
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate
-   ```
+Use Python 3.10+ and install `requirements.txt` in your virtual environment:
 
-2. **Install dependencies:**
-   ```bash
-   pip install llama-index llama-index-llms-openai \
-               llama-index-llms-openai-like graspologic \
-               pandas nest-asyncio python-dotenv \
-               google-search-results trafilatura youtube_transcript_api requests
-   ```
+```bash
+pip install -r requirements.txt
+```
 
-3. **Configure API keys** — create a `.env` file in the project root:
-   ```
-   SERPAPI_KEY=your_serpapi_key_here
-   OPENAI_API_KEY=your_openai_api_key_here
-   LITELLM_API_KEY=your_litellm_api_key_here
-   ```
+Configure the selected provider in `.env`: `LITELLM_API_KEY` for local Qwen through
+LiteLLM, or `OPENAI_API_KEY` for OpenAI. The profile's `llm` settings in `profiles.yaml` select the provider and models.
 
-## Usage
+## Run Streamlit
 
-### Configure the ontology
+From `causalRAG/`, activate the virtual environment and choose the profile:
 
-`ontology.yaml` contains named profiles under `ontologies`, each defining
-`entity_types` and `relation_types` as output labels mapped to descriptions.
-`Xelsis` covers machine operation, maintenance, and troubleshooting. `AI news`
-preserves the original seven entity types and eight relationship types for the
-AI copyright dataset. Set `active_ontology: Xelsis` (the default) or
-`active_ontology: AI news` to select the vocabulary used for extraction and
-validation. Only the selected profile's labels are accepted.
+```bash
+source .venv/bin/activate
+streamlit run app.py -- xelsis
+# Or, in a separate server:
+streamlit run app.py --server.port 8502 -- ai_news
+```
 
-In `graphrag_ai_copyright_refactored.ipynb`, select `PROFILE = "Xelsis"` or
-`PROFILE = "AI news"` in Section 1 before importing `src`. This sets
-`GRAPH_RAG_PROFILE` for the Python process, overriding the YAML default without
-editing it. The notebook loads the Xelsis PDF's selected pages or the AI news
-CSV respectively. PDF page/chunk settings and the CSV article limit are in the
-same cell. Restart the kernel and run from the top after switching profiles.
+`app.py` is the single entry point. The argument after `--` selects the profile;
+`xelsis`, `ai_news`, and quoted `"AI news"` are accepted. Run each profile in a
+separate process because its ontology is selected at import time. Streamlit's
+own flags go before `--`. An equivalent command that guarantees the project
+Python environment is `.venv/bin/python -m streamlit run app.py -- xelsis`.
 
-Notebook output filenames include both the profile and LLM provider, for example
-`xelsis_qwen_graph_store.pkl` and `ai_news_qwen_graph_store.pkl`. Set
-`FORCE_REBUILD = True` after changing inputs, selected pages, chunk settings,
-ontology, or prompts. Existing checkpoints otherwise bypass extraction.
+The app automatically loads `output/<profile>_graph_store.pkl`. If no checkpoint
+exists, it explains how to build one in the notebook. Browsing a graph requires no
+LLM credentials or requests, and does not write JSON/HTML files. **Reload graph**
+refreshes a rebuilt checkpoint. Loading failures display the actual error,
+checkpoint path, and Python executable; a rebuild is not automatically required.
 
-`prompt.yaml` stores the matching `AI news` and `Xelsis` profiles under `prompts`.
-The selected ontology profile selects all four LLM templates: `extraction`,
-`community_summary`, `community_answer`, and `aggregation`. There is no separate
-prompt selector, so prompts and ontology stay aligned. To add a domain, add a
-profile with the same name to both YAML files.
+- **Graph explorer** preserves community/type colors, community and entity-type
+  filters, member lists and summaries, search, node selection and highlighting,
+  node dragging, pan/zoom/reset, layout sliders, edge-label controls, statistics,
+  and compact provenance on edge hover in the graph's left panel.
+- **Query the System** accepts a typed question and runs the same community-answer
+  and aggregation engine as the notebook. Example questions and a per-session
+  history are included. **Ask** is disabled when summaries are absent. Queries
+  use the complete saved summaries, independent of visualization filters.
 
-Edit prompt wording freely, but preserve each template's placeholders:
+All profile settings now live together in `profiles.yaml`, shared with the notebook:
+PDF path/pages/chunking, output prefix, questions, and the `llm` options. Restart
+the Streamlit server after editing the YAML. The default
+uses the notebook's Qwen model and LiteLLM endpoint. For OpenAI, set the profile's
+`llm.provider`, `llm.extraction_model`, and `llm.query_model` together. Existing
+`.env` credentials remain server-side; the app never sends them to the graph.
 
-| Template | Required placeholders |
+Streamlit is the main UI. `graph_template.html` remains the internal D3 renderer
+inside a sandboxed custom component so its existing interactions are preserved.
+The app renders it in memory; standalone HTML export remains optional. Generated
+JSON/checkpoints continue to use only the profile's canonical `output/` files.
+Question history lives in the browser session's server-side state, not output files.
+
+## Run the notebook
+
+Open `graphrag_ai_copyright_refactored.ipynb` from `causalRAG/` or its parent.
+Select `PROFILE` in Section 1 before importing `src`; edit its settings in `profiles.yaml`:
+
+| Profile | PDF input | Default pages |
+|---|---|---|
+| `Xelsis` | `data/Xelsis.pdf` | 5, 7–8, 14–16, 18–21, 28–30 |
+| `AI news` | `data/ai_news.pdf` | All pages |
+
+Supply a text-based AI news PDF at the configured path before running that
+profile. CSV loading is removed. Scanned/image-only PDFs require OCR before
+loading; empty pages are skipped and reported. `PDF_PAGES` accepts 1-based page
+selections such as `"5, 7-8"`, a list of page numbers, or `None` for every page.
+Each entry in `PROFILES` groups `input_file`, `pages`, `pdf_chunk_size`,
+`chunk_overlap`, `force_rebuild`, output prefix, and questions. Selecting `PROFILE`
+loads those settings together; page-based loading keeps chunks within pages.
+
+The Python service and manager also accept bookmark-based section selection:
+
+```python
+from src.graph_rag_services import GraphRAGService
+
+sections = GraphRAGService.list_pdf_sections("data/Xelsis.pdf")
+for section in sections:
+    print(section)  # id, title, level, start_page, end_page
+
+chunks = GraphRAGService.load_pdf_documents("data/Xelsis.pdf", sections=["1"])
+# Also supported by manager.load_pdf_documents() and manager.build_pdf_and_store().
+```
+
+Use IDs from the listing (e.g. `"1.2"`) or exact, case-insensitive bookmark titles.
+IDs reflect bookmark order, not printed section numbers. Pass multiple sections
+as a list; commas in titles are preserved. Parent sections include their nested
+subsections, and overlapping selections load each page once. Choose either
+`pages` or `sections` in a call. Selected section IDs/titles are retained in chunk
+metadata and provenance.
+
+Bookmark selections start at the bookmark page and end before the next bookmark at
+the same or higher level (or at the end of the PDF). Selection loads whole pages;
+bookmarks starting on the same page share that page. It does not trim text at
+headings or infer sections from a printed table of contents. PDFs without
+bookmarks can use `pages` or explicit heading ranges; `list_pdf_sections()` returns
+an empty list for them.
+
+For exact heading boundaries, pass `(title, next_title)` pairs as `section_ranges`:
+
+```python
+chunks = GraphRAGService.load_pdf_documents(
+    "data/152E-GEN-8002(doc)-C.pdf",
+    section_ranges=[(
+        "5.1.1 SYSTEM DESCRIPTION",
+        "5.1.2 FUNCTIONAL DESCRIPTION OF AUTOMATIC SLIDING DOOR",
+    )],
+    chunk_overlap=0,
+)
+print("\n".join(chunk.text for chunk in chunks))
+```
+
+The start heading is included; the next heading is excluded. This includes any
+continuation on the next heading's page. A single tuple or a list of tuples is
+accepted, including several ranges on the same page. Heading matching ignores
+case and differences in spaces/tabs, and requires a standalone extracted line.
+Bookmarks narrow the search when available; otherwise the loader searches page
+text and rejects missing or ambiguous headings. Headers/footers within a range
+are retained. Section text is joined across pages before chunking, so a section
+that fits the token budget becomes one chunk even when it spans several pages.
+Larger sections split using `chunk_size` and `chunk_overlap`. Separate heading
+ranges remain separate documents. Bookmark selections also join across pages;
+overlapping bookmark selections are grouped to avoid duplicating shared pages.
+
+Each section chunk has `page_numbers` and a `provenance` entry for every
+contributing page, with its own excerpt and original line range. The singular
+`page_number` and `page_chunk_index` fields refer to the first contributing page.
+Page-based loading still chunks each page separately. Use only one of
+`pages`, `sections`, or `section_ranges`. Both manager loading methods also accept
+`section_ranges`.
+
+Restart the kernel and run from the top after switching profiles or editing YAML.
+Set `FORCE_REBUILD = True` after changing inputs, pages, chunk settings, provider,
+ontology, or prompts. Otherwise the selected profile's checkpoint is reused.
+
+## Outputs
+
+`output/<profile>_graph_data.json` includes a `rejected_relationships` audit list.
+When the extraction model references an endpoint it did not declare as an entity,
+the rejected relationship is recorded with its source/target, label, description,
+`missing_endpoints`, reason, chunk ID, source excerpt, and page/line provenance.
+These entries are excluded from graph nodes and links but survive checkpoint
+save/reload. Rebuild extraction to capture new audit records; previously printed
+rejections cannot be recovered from older checkpoints.
+
+All generated artifacts reside in `causalRAG/output/`, independent of the working
+directory. Each profile has exactly one checkpoint, JSON export, and HTML file:
+
+| Profile | Checkpoint | JSON | Visualization |
+|---|---|---|---|
+| Xelsis | `xelsis_graph_store.pkl` | `xelsis_graph_data.json` | `xelsis_graph.html` |
+| AI news | `ai_news_graph_store.pkl` | `ai_news_graph_data.json` | `ai_news_graph.html` |
+
+Rebuilding overwrites that profile's files; provider-specific variants are no
+longer created. Service/manager methods default to these paths and reject custom
+output paths. `graph_template.html` is the source template, not generated output.
+Checkpoints contain graph state and community summaries, excluding live LLM
+clients. Load only trusted checkpoints.
+
+## Provenance and visualization
+
+Each extracted triple stores a `provenance` list with its PDF filename/source,
+1-based physical PDF page, page-local chunk number, extracted-text line range,
+and source chunk excerpt. Line ranges identify the **source chunk**, not an exact
+supporting sentence, and refer to pypdf's extracted text rather than printed line
+numbers. Sections are not guessed. Repeated triples merge all distinct source
+occurrences. Provenance survives checkpoint save/load and JSON/HTML export.
+
+Open the Streamlit Graph explorer (or optional HTML export) and hover over an edge. The left sidebar shows the triple,
+description, and all source locations/excerpts. The last hovered edge remains
+visible so you can scroll and read it. Different predicates and reverse relations
+between the same nodes remain distinct in JSON and appear as separate curves.
+Nodes are colored by their most specific community by default. Use **Communities**
+in the sidebar to isolate a group, see its member nodes, internal-edge count, and
+summary. Switch **Color nodes by** to **Entity type** to restore type colors.
+Parent communities may overlap; unassigned nodes appear in gray. **Show all**
+clears both community and type filters.
+
+Community memberships are persisted with new checkpoints. Older checkpoints
+recover groups from graph topology without LLM calls. Their original summary IDs
+cannot be matched reliably to recovered groups, so the panel asks you to rebuild
+communities for matching summaries. Existing query summaries remain available.
+
+The graph also supports node search, type filters, node selection, and layout
+controls. D3 and fonts are loaded from CDNs.
+
+Legacy graphs built without provenance need a PDF rebuild to capture all source
+occurrences and line ranges. Existing CSV-derived graphs cannot acquire PDF page
+numbers without being rebuilt from a PDF.
+
+## Ontology and prompts
+
+`ontology.yaml` defines named profiles under `ontologies`, each with `entity_types`
+and `relation_types` mapped to descriptions. The notebook sets `GRAPH_RAG_PROFILE`
+to override the YAML `active_ontology` default for the process. The same profile
+selects all four templates in `prompt.yaml`. Allowed labels constrain the Pydantic
+extraction models; missing profiles and invalid configuration fail early.
+
+| Prompt | Required placeholders |
 |---|---|
 | `extraction` | `{entity_types}`, `{relation_types}`, `{max_knowledge_triplets}`, `{text}` |
 | `community_summary` | `{entities_text}`, `{relationships_text}` |
 | `community_answer` | `{summary}`, `{query}` |
 | `aggregation` | `{combined}`, `{query}` |
 
-Use `{{` and `}}` for literal braces, such as JSON examples. Keep the exact
-`No relevant information.` response instruction in `community_answer`, because
-the query engine uses it to discard irrelevant answers. Missing prompt profiles,
-empty templates, and missing or unknown placeholders fail at import time.
+Use `{{` and `}}` for literal braces. Preserve `No relevant information.` in the
+community-answer prompt; the query engine uses it to discard irrelevant answers.
 
-`src/graph_rag_schema.py` loads this file relative to the project directory,
-independently of the working directory. Both the extraction prompt and Pydantic
-structured-output constraints use these definitions. Missing or invalid
-configuration fails at import time instead of falling back to hardcoded labels.
+## Python API
 
-After editing the YAML, restart Python or the Jupyter kernel and rerun the
-notebook cells. Rebuild the graph with a new checkpoint filename: existing
-checkpoints retain the ontology and summaries used when they were built.
-This configures the vocabulary; it does not add new graph properties, PDF
-notebook wiring, or change the current undirected community graph conversion.
+```python
+from src import GraphRAGManager
 
-Run the offline schema checks with:
-```bash
-python -m unittest discover -s tests -v
+manager = GraphRAGManager(provider="openai")
+manager.load_pdf_documents("data/Xelsis.pdf", pages="5, 7-8")
+manager.build_knowledge_graph()
+manager.save_knowledge_graph()
+manager.visualize()
+# Later, with the same active profile:
+manager.load_knowledge_graph()
 ```
 
-### Step 1 — Scrape content (`scrape_info.ipynb`)
+Set `GRAPH_RAG_PROFILE` before importing `src` to use a profile other than the
+YAML default. `build_pdf_and_store()` also provides a combined load/build/save
+workflow.
 
-Searches Google for AI copyright/IP articles and YouTube videos, then enriches them with full article text (via Trafilatura) and video transcripts (via YouTube Transcript API).
-You can swap out the search queries with any other search terms relevant to your project.
+Run offline validation (mocked LLM, no API requests):
 
-Output: `ai_copyright_dataset.csv`
-
-### Step 2 — Build the knowledge graph (`graphrag_ai_copyright.ipynb`)
-
-Loads the scraped dataset and runs the full GraphRAG pipeline. Set `USE_QWEN`
-in the configuration cell to `True` for local Qwen or `False` for OpenAI.
-
-- **Entity extraction** — uses the selected provider to extract entities and relationships under the defined ontology.
-- **Relationship extraction** — maps typed relationships between entities using Pydantic-validated schemas
-- **Community detection** — runs Louvain clustering to group related entities into thematic communities
-- **Community summarization** — generates LLM summaries for each cluster
-- **Query engine** — answers complex questions by synthesizing context across communities using the selected provider
-- **Export** — writes provider-specific JSON, HTML, and checkpoint files
-
-### Step 3 — Explore the visualization
-
-Open `ai_copyright_graph.html` in a browser. Features:
-
-- Force-directed graph layout (D3.js)
-- Filter nodes by entity type via the sidebar legend
-- Search nodes by name
-- Click a node to highlight its direct connections
-- Hover for entity details in a tooltip
-- Adjust link distance with the slider
+```bash
+python -m unittest discover -s tests -v
+node tests/test_visualization.js
+```

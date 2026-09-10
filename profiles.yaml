@@ -22,6 +22,7 @@ profiles:
       max_cluster_size: 10
       request_timeout: 180.0
       request_max_retries: 5
+
   AI news:
     input_type: pdf
     input_file: data/ai_news.pdf
@@ -45,6 +46,7 @@ profiles:
       max_cluster_size: 10
       request_timeout: 180.0
       request_max_retries: 5
+
   Half_PSD:
     input_type: pdf
     input_file: data/152E-GEN-8002(doc)-C.pdf
@@ -54,13 +56,17 @@ profiles:
     - - 6.2.1 Door Control Unit (DCU)
       - 6.2.2 Operator Control
     - - 7.3.3 Initialization of DCU
-      - 7.7.6 All Doors Closed but “Closed and Locked” Signal is missing
+      - 7.4 NORMAL OPERATION
     - - 12.1 CM01 – REPLACE DCU
       - 12.2 CM02 – RESET DCU
     - - 12.2 CM02 – RESET DCU
       - 12.3 CM03 – RESET PLC IN PSCC
-    pdf_chunk_size: 1000
-    chunk_overlap: 100
+
+    # Slightly smaller chunks reduce the chance that unrelated procedures/fault cases
+    # are extracted into the same LLM call. The increased overlap protects relations
+    # that cross sentence/chunk boundaries.
+    pdf_chunk_size: 800
+    chunk_overlap: 120
     force_rebuild: false
     output_prefix: half_psd
     questions:
@@ -74,7 +80,14 @@ profiles:
       query_model: Qwen3.8-27B
       qwen_base_url: http://192.168.10.45:4000/v1
       num_workers: 2
-      max_paths_per_chunk: 20
-      max_cluster_size: 10
+
+      # Raise extraction budget so dense fault tables are less likely to lose useful
+      # candidate causal/diagnostic relationships.
+      max_paths_per_chunk: 30
+
+      # 10 was recursively splitting natural 14-17 node engineering communities.
+      # 18 keeps those intact while still splitting the 20-30 node broad communities.
+      max_cluster_size: 18
+
       request_timeout: 180.0
       request_max_retries: 5

@@ -1,9 +1,12 @@
 llama-index
 llama-index-llms-openai
+llama-index-llms-openai-like
 graspologic
 networkx
-pandas
 pydantic>=2
+PyYAML>=6
+pypdf>=5
 nest-asyncio
 python-dotenv
 jupyter
+streamlit>=1.63,<2

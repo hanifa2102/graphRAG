@@ -160,6 +160,7 @@ class GraphRAGManager:
             embed_kg_nodes=False,
             show_progress=show_progress,
         )
+        self.graph_store.rejected_relationships = list(self.extractor.rejected_relationships)
         if build_communities:
             self.graph_store.build_communities(
                 summary_llm=self.extraction_llm,
@@ -175,6 +176,7 @@ class GraphRAGManager:
         checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
         graph_store.ensure_community_members()
         payload = {
+            "rejected_relationships": graph_store.rejected_relationships,
             "community_members": graph_store.community_members,
             "community_primary": graph_store.community_primary,
             "community_membership_origin": graph_store.community_membership_origin,
@@ -212,6 +214,7 @@ class GraphRAGManager:
 
         graph_store = GraphRAGStore()
         graph_store.graph = payload["graph"]
+        graph_store.rejected_relationships = payload.get("rejected_relationships", [])
         graph_store.community_summaries = dict(
             payload["community_summaries"]
         )

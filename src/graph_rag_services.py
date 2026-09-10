@@ -471,6 +471,7 @@ class GraphRAGService:
             "profile": GraphRAGSchema.ACTIVE_ONTOLOGY,
             "nodes": nodes_data,
             "links": links_data,
+            "rejected_relationships": graph_store.rejected_relationships,
             "communities": len(graph_store.community_members),
             "community_membership_origin": graph_store.community_membership_origin,
             "community_details": [

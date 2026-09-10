@@ -229,14 +229,16 @@
   /* ── Edge labels ─────────────────────────────────────────────── */
   .edge-label {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 8px;
-    fill: #334155;
+    font-size: 10px;
+    font-weight: 500;
+    fill: #e2e8f0;
+    paint-order: stroke;
+    stroke: #0b1120;
+    stroke-width: 3px;
+    stroke-linejoin: round;
     pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.2s;
+    opacity: 1;
   }
-
-  .edge-label.visible { opacity: 1; }
 
   /* ── Nodes ───────────────────────────────────────────────────── */
   .node circle {
@@ -371,11 +373,6 @@
         <div class="control-row">
           <div class="control-label">Charge strength</div>
           <input type="range" id="charge" min="-800" max="-50" value="-300">
-        </div>
-        <div class="control-row">
-          <div class="control-label">Edge labels</div>
-          <input type="range" id="label-threshold" min="0" max="10" value="3"
-                 title="Show labels on edges connecting nodes with degree ≥ this value">
         </div>
         <div class="btn-row">
           <button id="btn-reset">Reset zoom</button>
@@ -813,14 +810,6 @@ document.getElementById("link-distance").addEventListener("input", e => {
 document.getElementById("charge").addEventListener("input", e => {
   simulation.force("charge").strength(+e.target.value);
   simulation.alpha(0.3).restart();
-});
-
-document.getElementById("label-threshold").addEventListener("input", e => {
-  const threshold = +e.target.value;
-  edgeLabel.classed("visible", d => {
-    const minDeg = Math.min(d.source.degree || 1, d.target.degree || 1);
-    return minDeg >= threshold;
-  });
 });
 
 document.getElementById("btn-reset").addEventListener("click", () => {

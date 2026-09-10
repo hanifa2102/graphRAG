@@ -24,6 +24,34 @@ from pydantic import Field, field_validator
 from .graph_rag_schema import ExtractionResult, GraphRAGSchema
 
 
+# Community-detection weights for a Candidate Causal Graph.
+# These weights affect clustering only; they do not change the extracted graph semantics.
+RELATION_WEIGHTS: dict[str, float] = {
+    "CAUSES": 4.0,
+    "MAY_CAUSE": 3.5,
+    "INDICATES": 3.0,
+    "DETECTS": 2.5,
+    "TRIGGERS": 2.5,
+    "MITIGATES": 2.0,
+    "CLEARS": 2.0,
+    "RESPONDS_TO": 1.8,
+    "CONTROLS": 1.5,
+    "MONITORS": 1.5,
+    "CONFIGURES": 1.4,
+    "HAS_STATE": 1.0,
+    "SENDS": 1.0,
+    "RECEIVES": 1.0,
+    "CONNECTED_TO": 0.8,
+    "PART_OF": 0.7,
+    "REQUIRES": 0.7,
+    "HAS_STEP": 0.6,
+    "ACTS_ON": 0.6,
+    "PRECEDES": 0.5,
+    "TESTS": 0.5,
+    "PREVENTS": 1.5,
+}
+
+
 class GraphRAGExtractor(TransformComponent):
     """Extract ontology-constrained entities and relationships with descriptions."""
 
@@ -33,6 +61,7 @@ class GraphRAGExtractor(TransformComponent):
     )
     num_workers: int = 4
     max_paths_per_chunk: int = 20
+    rejected_relationships: list[dict[str, Any]] = Field(default_factory=list, exclude=True)
 
     @field_validator("extract_prompt", mode="before")
     @classmethod
@@ -82,21 +111,41 @@ class GraphRAGExtractor(TransformComponent):
         ]
 
         entity_lookup = {entity.name: entity.type for entity in entities}
+        rejected_relationships = []
+
         for relationship in relationships:
+            # Do not silently create out-of-ontology ENTITY nodes when the model emits
+            # an endpoint that it failed to declare in the entity list. Precision is
+            # preferred over graph completion for the Candidate Causal Graph.
+            missing = [
+                endpoint
+                for endpoint in (relationship.source, relationship.target)
+                if endpoint not in entity_lookup
+            ]
+            if missing:
+                rejected_relationships.append({
+                    "source": relationship.source,
+                    "target": relationship.target,
+                    "label": relationship.relation,
+                    "description": relationship.description,
+                    "missing_endpoints": list(dict.fromkeys(missing)),
+                    "reason": "endpoint_not_declared",
+                    "chunk_id": node.node_id,
+                    "provenance": node.metadata.get("provenance", []),
+                    "excerpt": node.get_content(metadata_mode="none"),
+                })
+                continue
+
             source_node = EntityNode(
                 name=relationship.source,
-                label=entity_lookup.get(relationship.source, "ENTITY"),
+                label=entity_lookup[relationship.source],
                 properties=base_metadata,
             )
             target_node = EntityNode(
                 name=relationship.target,
-                label=entity_lookup.get(relationship.target, "ENTITY"),
+                label=entity_lookup[relationship.target],
                 properties=base_metadata,
             )
-            if relationship.source not in entity_lookup:
-                existing_nodes.append(source_node)
-            if relationship.target not in entity_lookup:
-                existing_nodes.append(target_node)
             existing_relations.append(
                 Relation(
                     label=relationship.relation,
@@ -108,6 +157,17 @@ class GraphRAGExtractor(TransformComponent):
                     },
                 )
             )
+
+        if rejected_relationships:
+            self.rejected_relationships.extend(rejected_relationships)
+            node_label = node.metadata.get("title", node.node_id)
+            print(
+                f"Rejected {len(rejected_relationships)} relationship(s) in {node_label!r} "
+                "because one or more endpoints were not declared as entities."
+            )
+            for item in rejected_relationships[:5]:
+                print(f"  {item['source']} --[{item['label']}]--> {item['target']}; "
+                      f"missing={item['missing_endpoints']}")
 
         node.metadata[KG_NODES_KEY] = existing_nodes
         node.metadata[KG_RELATIONS_KEY] = existing_relations
@@ -141,6 +201,7 @@ class GraphRAGStore(SimplePropertyGraphStore):
         self.community_members = {}
         self.community_primary = {}
         self.community_membership_origin = "unavailable"
+        self.rejected_relationships = []
 
     def upsert_relations(self, relations: list[Relation]) -> None:
         """Merge source occurrences when a triple appears in multiple chunks/pages."""
@@ -166,9 +227,9 @@ class GraphRAGStore(SimplePropertyGraphStore):
     def build_communities(
         self,
         summary_llm: LLM,
-        max_cluster_size: int = 10,
+        max_cluster_size: int = 18,
     ) -> dict[int, str]:
-        """Detect communities, generate their summaries, and return them."""
+        """Detect final communities, generate their summaries, and return them."""
 
         print("Running community detection...")
         nx_graph = self.to_networkx()
@@ -183,15 +244,24 @@ class GraphRAGStore(SimplePropertyGraphStore):
             f"Graph has {nx_graph.number_of_nodes()} nodes, "
             f"{nx_graph.number_of_edges()} edges"
         )
-        clusters = hierarchical_leiden(
+        hierarchy = hierarchical_leiden(
             nx_graph,
             max_cluster_size=max_cluster_size,
+            resolution=1.0,
             random_seed=42,
+            weight_attribute="weight",
         )
-        print(f"Found {len({cluster.cluster for cluster in clusters})} communities")
 
-        self._record_community_members(clusters, "built")
-        community_info = self._collect_community_info(nx_graph, clusters)
+        # hierarchical_leiden returns a state log across hierarchy levels.
+        # For RAG summaries and primary visualization grouping, use final membership only.
+        final_clusters = [item for item in hierarchy if item.is_final_cluster]
+        print(
+            f"Found {len({cluster.cluster for cluster in final_clusters})} final communities "
+            f"({len({cluster.cluster for cluster in hierarchy})} community IDs across hierarchy)"
+        )
+
+        self._record_community_members(final_clusters, "built-final")
+        community_info = self._collect_community_info(nx_graph, final_clusters)
         self.community_summaries = {}
         self._generate_summaries(community_info, summary_llm)
         print(f"Generated {len(self.community_summaries)} community summaries")
@@ -204,35 +274,61 @@ class GraphRAGStore(SimplePropertyGraphStore):
             members = self.community_members.setdefault(item.cluster, [])
             if item.node not in members:
                 members.append(item.node)
+            # This also works when callers pass only final clusters.
             if item.is_final_cluster:
                 self.community_primary[item.node] = item.cluster
         self.community_membership_origin = origin
 
     def ensure_community_members(self) -> None:
-        """Recover visualization groups for old checkpoints without guessing summary IDs."""
+        """Recover final visualization groups for old checkpoints."""
         if self.community_members or not self.community_summaries:
             return
         graph = self.to_networkx()
         if graph.number_of_edges():
-            clusters = hierarchical_leiden(graph, max_cluster_size=10, random_seed=42)
-            self._record_community_members(clusters, "recovered")
+            hierarchy = hierarchical_leiden(
+                graph,
+                max_cluster_size=18,
+                resolution=1.0,
+                random_seed=42,
+                weight_attribute="weight",
+            )
+            final_clusters = [item for item in hierarchy if item.is_final_cluster]
+            self._record_community_members(final_clusters, "recovered-final")
 
     def to_networkx(self) -> nx.Graph:
-        """Convert the entity portion of the property graph to NetworkX."""
+        """Convert the entity portion of the property graph to weighted NetworkX."""
 
         nx_graph = nx.Graph()
         for node in self.get_entity_nodes():
             nx_graph.add_node(node.id)
 
         for relation in self.graph.relations.values():
-            if relation.source_id in nx_graph and relation.target_id in nx_graph:
+            if relation.source_id not in nx_graph or relation.target_id not in nx_graph:
+                continue
+
+            weight = RELATION_WEIGHTS.get(relation.label, 1.0)
+            if nx_graph.has_edge(relation.source_id, relation.target_id):
+                # Multiple semantic relations between the same pair should strengthen
+                # their connection rather than overwrite the first relation's weight.
+                edge = nx_graph[relation.source_id][relation.target_id]
+                edge["weight"] = float(edge.get("weight", 0.0)) + weight
+                labels = edge.setdefault("relationships", [])
+                if relation.label not in labels:
+                    labels.append(relation.label)
+                descriptions = edge.setdefault("descriptions", [])
+                description = relation.properties.get("relationship_description", "")
+                if description and description not in descriptions:
+                    descriptions.append(description)
+            else:
+                description = relation.properties.get("relationship_description", "")
                 nx_graph.add_edge(
                     relation.source_id,
                     relation.target_id,
+                    weight=weight,
                     relationship=relation.label,
-                    description=relation.properties.get(
-                        "relationship_description", ""
-                    ),
+                    relationships=[relation.label],
+                    description=description,
+                    descriptions=[description] if description else [],
                 )
         return nx_graph
 
@@ -280,14 +376,20 @@ class GraphRAGStore(SimplePropertyGraphStore):
                 if community_mapping.get(neighbor) != community_id:
                     continue
                 edge = nx_graph.get_edge_data(node_id, neighbor) or {}
-                relation = edge.get("relationship", "RELATED")
-                description = edge.get("description", "")
+                relations = edge.get("relationships") or [
+                    edge.get("relationship", "RELATED")
+                ]
+                descriptions = edge.get("descriptions") or [
+                    edge.get("description", "")
+                ]
                 source_name = node_details.get(node_id, {}).get("name", node_id)
                 target_name = node_details.get(neighbor, {}).get("name", neighbor)
-                entry = f"{source_name} --[{relation}]--> {target_name}"
-                if description:
-                    entry += f" ({description})"
-                community_info[community_id]["relationships"].append(entry)
+                for index, relation in enumerate(relations):
+                    description = descriptions[index] if index < len(descriptions) else ""
+                    entry = f"{source_name} --[{relation}]--> {target_name}"
+                    if description:
+                        entry += f" ({description})"
+                    community_info[community_id]["relationships"].append(entry)
         return community_info
 
     def _generate_summaries(
